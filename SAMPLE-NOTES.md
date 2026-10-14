@@ -12,7 +12,7 @@ All names, domains, phone numbers and addresses here are fictional (`quillmere-p
 | `demo/site_after/` | The same site after fixes |
 | `audit.py` | A checker that tests 19 rules and prints PASS/FAIL per rule. Same input, same answer every time |
 | `accept.py` | Runs the checker on both folders and confirms: many failures before, none after |
-| `out/` | The two reports the checker writes |
+| `demo/out/` | The two reports the checker writes |
 | `deliverable_example.md` | What a buyer receives (Markdown; the buyer applies the files and nothing is published for them) |
 
 Run it: `python audit.py demo/site_before` (Python 3 only, nothing to install).

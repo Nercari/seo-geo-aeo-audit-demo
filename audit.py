@@ -1,7 +1,7 @@
 """Deterministic SEO + GEO audit for a small static site (standard library only).
 
 Usage: python samples/g1_seo_geo/audit.py <site_folder>
-Prints a PASS/FAIL table and a score; writes out/report_<name>.md
+Prints a PASS/FAIL table and a score; writes demo/out/report_<name>.md
 (site_before -> report_before.md, site_after -> report_after.md).
 
 Rules are fixed and checkable by code. They are good-practice checks, not a
@@ -310,7 +310,7 @@ def run(site):
     site = Path(site)
     rows, passed, total = summarize(audit(site))
     label = site.name.replace("site_", "") or site.name
-    out = Path(__file__).parent / "out"
+    out = Path(__file__).parent / "demo" / "out"
     out.mkdir(exist_ok=True)
     (out / f"report_{label}.md").write_text(render(site.name, rows, passed, total), encoding="utf-8")
     return rows, passed, total, label
@@ -325,7 +325,7 @@ def main(argv):
     print(f"{'CHECK'.ljust(w)}  RESULT  DETAIL")
     for cid, _, ok, det in rows:
         print(f"{cid.ljust(w)}  {'PASS' if ok else 'FAIL'}    {det}")
-    print(f"\nScore: {passed}/{total} ({round(100 * passed / total)}%)  ->  out/report_{label}.md")
+    print(f"\nScore: {passed}/{total} ({round(100 * passed / total)}%)  ->  demo/out/report_{label}.md")
     return 0
 
 

@@ -33,7 +33,7 @@ Fixes are ordered by importance. "Effort" is how long the change takes me or you
 
 ## After the fixes
 
-Before delivery I ran the same checker (`audit.py`) on the drafted fixes and the drafted FAQ, not only on the old site. The results are measured, and the full before and after reports are in `out/`.
+Before delivery I ran the same checker (`audit.py`) on the drafted fixes and the drafted FAQ, not only on the old site. The results are measured, and the full before and after reports are in `demo/out/`.
 
 | | Pages checked | Checks passed | Score |
 |---|---|---|---|
