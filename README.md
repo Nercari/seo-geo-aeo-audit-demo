@@ -79,7 +79,7 @@ Packages: AUDIT / AUDIT + FIXES / AUDIT, FIXES + FAQ (Fiverr gig coming soon).
 This demo does not claim rankings. It shows measurable on-site checks (audit, Lighthouse, schema, crawlability, `llms.txt`).
 
 ### Can you publish the fixes on my CMS?
-Yes, when you grant a CMS login for the fixes you approve. See the matching Fiverr gig FAQ.
+Yes, when you grant a CMS login for the fixes you approve.
 
 ## Docs
 
