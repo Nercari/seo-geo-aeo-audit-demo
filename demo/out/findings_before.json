@@ -135,7 +135,7 @@
  {
   "check": "nap_consistent",
   "fix": "Use one business name, phone and street address on every page.",
-  "issue": "site declares no business name (LocalBusiness JSON-LD or og:site_name); name: 3 variants; phone: 2 variants; address: 2 variants",
+  "issue": "site declares no business name (LocalBusiness JSON-LD, og:site_name or itemprop name)",
   "tier": "Warn",
   "url": "site"
  },

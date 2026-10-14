@@ -10,9 +10,11 @@ The score counts the 19 core checks. Each check also has a tier (Error, Warn,
 Notice); the health % counts only checks with an Error finding.
 
 Rules are fixed and checkable by code. They are good-practice checks, not a
-prediction of rankings or AI citations. The NAP name check compares against the
-name the site declares (LocalBusiness JSON-LD, else og:site_name); the street
-address pattern is US-style ("14 Mill Street"), adjust it for other formats.
+prediction of rankings or AI citations. The NAP check compares only declared,
+structured values across pages (LocalBusiness-family JSON-LD name, telephone and
+streetAddress; og:site_name; itemprop values; phones in an <address> element),
+normalised for case, whitespace, NBSP and punctuation. It does not scan body text
+for name variants, so a variant written only in prose is not caught.
 """
 import json
 import posixpath
@@ -20,7 +22,7 @@ import re
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 AI_BOTS = ["Googlebot", "Bingbot", "GPTBot", "OAI-SearchBot", "ClaudeBot", "PerplexityBot", "Google-Extended"]
 TITLE_RANGE = (30, 60)
@@ -31,67 +33,76 @@ MIN_FAQ = 5
 PHONE_RE = re.compile(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]\d{4}")
 
 
-def site_name(pages):
-    """The business name the site declares about itself: LocalBusiness-type JSON-LD name
-    (preferred over a plain Organization, which may be the agency/publisher), else og:site_name."""
-    order = sorted(pages, key=lambda n: n != "index.html")
-    objs = [o for n in order for o in parse_ld(pages[n])[1] if isinstance(o, dict) and o.get("name")]
-    for pref in (lambda t: t in ("LocalBusiness", "Plumber", "Store", "Bakery") or t.endswith("Business"),
-                 lambda t: t == "Organization"):
-        for o in objs:
-            if any(pref(t) for t in types_of(o)):
-                return clean_text(str(o["name"]))
-    for n in order:
-        v = pages[n].meta.get("og:site_name", "").strip()
-        if v:
-            return clean_text(re.sub(r"\s*\(.*\)\s*$", "", v))
-    return ""
+# LocalBusiness and its common schema.org subtypes. Types ending in one of LB_SUFFIXES also count
+# (HomeAndConstructionBusiness, ShoeStore, LegalService, RoofingContractor ...).
+LB_TYPES = {"LocalBusiness", "Plumber", "Electrician", "Locksmith", "HVACBusiness", "Dentist", "Physician",
+            "MedicalClinic", "Optician", "Pharmacy", "Restaurant", "Bakery", "CafeOrCoffeeShop", "BarOrPub",
+            "FastFoodRestaurant", "HairSalon", "BeautySalon", "NailSalon", "DaySpa", "AutoRepair", "AutoDealer",
+            "Attorney", "Notary", "Store", "Hotel", "Motel", "ExerciseGym", "ChildCare", "Florist",
+            "RealEstateAgent", "TravelAgency", "VeterinaryCare", "AccountingService", "Library"}
+LB_SUFFIXES = ("Business", "Store", "Service", "Contractor", "Shop", "Clinic", "Restaurant")
 
 
-def clean_text(t):
-    """Collapse all whitespace (incl. non-breaking spaces) to single spaces."""
-    return " ".join(t.replace("\xa0", " ").split())
+def is_local_business(o):
+    return any(isinstance(t, str) and (t in LB_TYPES or t.endswith(LB_SUFFIXES)) for t in types_of(o))
 
 
-def guess_brand(pages):
-    """Fallback when the site declares no name: the capitalised word that most often comes right
-    before a business-type word (Quillmere Plumbing, Bramble Bakery, Acme Co.). Message wording only:
-    the check already fails when no name is declared."""
-    from collections import Counter
-    c = Counter()
-    for p in pages.values():
-        c.update(re.findall(r"\b([A-Z][A-Za-z-]+) " + BUSINESS_WORDS, clean_text(" ".join(p.text))))
-    return max(c, key=lambda w: (c[w], w)) if c else ""
+def nkey(t):
+    """Comparison key: lower case, NBSP and runs of whitespace collapsed, punctuation dropped
+    ("Acme Co." == "acme co", "+1 (555) 010-0142" phones are compared by digits instead)."""
+    t = str(t).replace("\xa0", " ").lower()
+    return " ".join(re.sub(r"[^\w\s]", " ", t).split())
 
 
-BUSINESS_WORDS = r"(?:Plumb\w*|Bakery|Bakers?|Store|Shop|Salon|Clinic|Dental|Law|Studio|Caf[eé]|Restaurant|Services|Co|Company|Inc|LLC|Ltd)\b"
-SUFFIX_RE = re.compile(r"^(?:Co|Company|Inc|LLC|Ltd|Corp|Plumbers?|Plumbing|Bakers?|Bakery|Group|Services)\.?$")
-LEAD_WORDS = {"The", "A", "An", "St", "St."}
+def og_name(v):
+    """og:site_name without a tagline ("Bramble Bakery | Fresh bread") or a trailing "(demo)"."""
+    v = re.split(r"\s+[|\u2013\u2014:]\s+|\s+-\s+", v.strip(), maxsplit=1)[0]
+    return re.sub(r"\s*\(.*\)\s*$", "", v).strip()
 
 
-def name_re(name):
-    """Mentions: the brand word(s) plus the capitalised words that follow, stopping at punctuation
-    ("Acme Co." keeps its full stop only for Co/Inc/Ltd/Corp). The brand is the first word of the name,
-    or the first two when the first is The/A/An/St."""
-    w = name.split()
-    brand = " ".join(w[:2] if len(w) > 1 and w[0] in LEAD_WORDS else w[:1])
-    return re.compile(r"(?<![A-Za-z])" + re.escape(brand) + r"(?:(?: (?:Co|Inc|Ltd|Corp)\.)| [A-Z][A-Za-z&-]*| &)*(?![A-Za-z])")
+def phone_key(v):
+    d = re.sub(r"\D", "", str(v))
+    return d[-10:] if len(d) >= 10 else d
 
 
-def name_variant(mention, declared):
-    """None if the mention is the declared name (optionally followed by an ordinary capitalised word, as in a
-    heading 'Bramble Bakery Opening Hours'); otherwise the mention itself, as a variant."""
-    if not declared:
-        return mention
-    if mention == declared:
-        return None
-    if mention.startswith(declared + " "):
-        nxt = mention[len(declared) + 1:].split()[0]
-        return mention if SUFFIX_RE.match(nxt) else None
-    return mention
+def street_of(addr):
+    if isinstance(addr, dict):
+        return str(addr.get("streetAddress") or "")
+    return str(addr or "")
 
 
-ADDR_RE = re.compile(r"\b\d{1,4} [A-Z][a-z]+ (?:Street|St\.?|Road|Rd\.?|Avenue|Ave\.?)(?=[\s,<]|$)")
+def nap_sources(pages):
+    """Declared NAP values only: LocalBusiness-family JSON-LD (name, telephone, address.streetAddress),
+    og:site_name, itemprop name/telephone/streetAddress, and phone numbers inside an <address> element.
+    Body text is never scanned for names. Returns {"name"|"phone"|"street": {key: (shown value, [pages])}}
+    plus the list of <address> texts per page."""
+    src = {"name": {}, "phone": {}, "street": {}}
+
+    def put(kind, key, shown, page):
+        if key:
+            src[kind].setdefault(key, (shown, []))[1].append(page)
+
+    for n in sorted(pages):
+        p = pages[n]
+        for o in parse_ld(p)[1]:
+            if is_local_business(o):
+                put("name", nkey(o.get("name") or ""), str(o.get("name") or "").strip(), n)
+                put("phone", phone_key(o.get("telephone") or ""), str(o.get("telephone") or ""), n)
+                st = street_of(o.get("address"))
+                put("street", nkey(st), st.strip(), n)
+        og = og_name(p.meta.get("og:site_name", ""))
+        put("name", nkey(og), og, n)
+        for k, v in p.itemprops:
+            kind = {"name": "name", "telephone": "phone", "streetAddress": "street"}.get(k)
+            if kind == "phone":
+                put(kind, phone_key(v), v.strip(), n)
+            else:
+                put(kind, nkey(v), " ".join(v.split()), n)
+        for t in p.addresses:
+            for ph in PHONE_RE.findall(t):
+                put("phone", phone_key(ph), ph, n)
+    return src
+
 
 # (id, why it matters in one line, scope)
 CHECKS = [
@@ -156,6 +167,9 @@ TRAINING_BOTS = ["GPTBot", "ClaudeBot", "Google-Extended", "Applebot-Extended", 
                  "meta-externalagent", "Bytespider"]
 
 
+VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
+
+
 class PageParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -174,9 +188,33 @@ class PageParser(HTMLParser):
         self._buf = []
         self._script = None
         self._in_title = False
+        self.itemprops = []  # (itemprop, value)
+        self._scopes = []  # open elements: (tag, None | is-LocalBusiness itemscope)
+        self.addresses = []
+        self._ip = []  # open itemprop captures: [tag, prop, parts]
+        self._addr = None
+        self._addr_depth = 0
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
+        ip = a.get("itemprop")
+        # itemprop name counts only directly inside a LocalBusiness-family itemscope
+        # telephone/streetAddress: anywhere inside one (e.g. via a nested PostalAddress).
+        scopes = [lb for _, lb in self._scopes if lb is not None]
+        if ip in ("name", "telephone", "streetAddress") and (scopes[-1:] == [True] if ip == "name" else any(scopes)):
+            if a.get("content") is not None:
+                self.itemprops.append((ip, a["content"]))
+            elif tag not in VOID:
+                self._ip.append([tag, ip, []])
+        if tag not in VOID:
+            lb = None
+            if "itemscope" in a:
+                lb = is_local_business({"@type": (a.get("itemtype") or "").rstrip("/").rsplit("/", 1)[-1]})
+            self._scopes.append((tag, lb))
+        if tag == "address":
+            self._addr_depth += 1
+            if self._addr is None:
+                self._addr = []
         if tag == "html":
             self.lang = a.get("lang")
         elif tag == "title":
@@ -203,6 +241,18 @@ class PageParser(HTMLParser):
                 self.h1 += 1
 
     def handle_endtag(self, tag):
+        for i in range(len(self._scopes) - 1, -1, -1):
+            if self._scopes[i][0] == tag:
+                del self._scopes[i:]
+                break
+        if self._ip and self._ip[-1][0] == tag:
+            _, ip, parts = self._ip.pop()
+            self.itemprops.append((ip, "".join(parts)))
+        if tag == "address" and self._addr_depth:
+            self._addr_depth -= 1
+            if not self._addr_depth:
+                self.addresses.append(" ".join(" ".join(self._addr).split()))
+                self._addr = None
         if tag == "title":
             self._in_title = False
         elif tag == "script":
@@ -223,6 +273,10 @@ class PageParser(HTMLParser):
             return
         else:
             self.text.append(d)
+            for c in self._ip:
+                c[2].append(d)
+            if self._addr is not None:
+                self._addr.append(d)
             if self._cur:
                 self._buf.append(d)
 
@@ -243,8 +297,9 @@ def parse_ld(p):
 
 
 def types_of(o):
-    t = o.get("@type", [])
-    return t if isinstance(t, list) else [t]
+    t = o.get("@type")
+    t = t if isinstance(t, list) else [t]
+    return [x for x in t if isinstance(x, str)]
 
 
 def robots_blocked(text, bot):
@@ -285,7 +340,8 @@ def site_base(home, locs):
 
 
 def is_noindex(p):
-    return any("noindex" in p.meta.get(k, "").lower() for k in ("robots", "googlebot", "bingbot"))
+    d = {x.strip() for k in ("robots", "googlebot", "bingbot") for x in p.meta.get(k, "").lower().split(",")}
+    return "noindex" in d or "none" in d
 
 
 def audit(site):
@@ -348,7 +404,7 @@ def audit(site):
     ok = False
     if home:
         for o in parse_ld(home)[1]:
-            if any(t in ("LocalBusiness", "Plumber", "Store", "Bakery") or t.endswith("Business") for t in types_of(o)):
+            if is_local_business(o):
                 ok = bool(o.get("name") and o.get("telephone") and o.get("address"))
     add("schema_localbusiness", ok, "index.html", "" if ok else "missing or incomplete")
     faq = pages.get("faq.html")
@@ -362,23 +418,21 @@ def audit(site):
                 why = "" if ok else "schema questions do not match visible questions"
     add("schema_faqpage", ok, "faq.html", why)
 
-    # NAP
-    per = {}
-    sname = site_name(pages)
-    brand = sname or guess_brand(pages)
-    nre = name_re(brand) if brand else None
-    for n, p in pages.items():
-        tx = clean_text(" ".join(p.text))
-        found = set(nre.findall(tx)) if nre else set()
-        per[n] = ({name_variant(m, sname) or sname for m in found} if sname else found, {re.sub(r"\D", "", x) for x in PHONE_RE.findall(tx)}, set(ADDR_RE.findall(tx)))
-    names = set().union(*(v[0] for v in per.values())) if per else set()
-    phones = set().union(*(v[1] for v in per.values())) if per else set()
-    addrs = set().union(*(v[2] for v in per.values())) if per else set()
-    problems = [f"{label}: {len(s)} variants" for label, s in (("name", names), ("phone", phones), ("address", addrs)) if len(s) != 1]
-    if not sname:
-        problems.insert(0, "site declares no business name (LocalBusiness JSON-LD or og:site_name)")
-    elif names and names != {sname}:
-        problems.append("name differs from declared '" + sname + "': " + ", ".join(sorted(names - {sname})))
+    # NAP: structured / declared sources only (see nap_sources); no free-text name scanning.
+    src = nap_sources(pages)
+    problems = []
+    if not src["name"]:
+        problems.append("site declares no business name (LocalBusiness JSON-LD, og:site_name or itemprop name)")
+    for label, kind in (("name", "name"), ("phone", "phone"), ("street address", "street")):
+        if len(src[kind]) > 1:
+            vals = sorted(src[kind].values(), key=lambda v: (-len(v[1]), v[0]))
+            problems.append(f"{label} differs across declared sources: " + "; ".join(
+                f"'{shown}' ({', '.join(sorted(set(pg)))})" for shown, pg in vals))
+    streets = [k for k in src["street"]]
+    if len(streets) == 1:
+        miss = sorted(n for n, p in pages.items() for t in p.addresses if streets[0] not in nkey(t))
+        if miss:
+            problems.append("<address> element does not show the declared street address: " + ", ".join(sorted(set(miss))))
     add("nap_consistent", not problems, "site", "; ".join(problems))
 
     # FAQ answer-first
@@ -402,11 +456,11 @@ def audit(site):
         try:
             locs = [l.strip() for l in re.findall(r"<loc>([^<]+)</loc>", sm.read_text(encoding="utf-8"))]
             base, home_u = site_base(home, locs)
-            paths = {urlparse(l).path or "/" for l in locs}
+            paths = {unquote(urlparse(l).path) or "/" for l in locs}
             paths |= {q[:-len("index.html")] for q in paths if q.endswith("/index.html")}
             listable = [n for n, p in pages.items() if n != "404.html" and not is_noindex(p)]
             expected = {base if n == "index.html" else base + n for n in listable}
-            if home_u is not None:
+            if home_u is not None and home_u.netloc:
                 off = sorted(l for l in locs if (urlparse(l).scheme, urlparse(l).netloc) != (home_u.scheme, home_u.netloc))
             else:
                 off = []
@@ -455,7 +509,7 @@ def extra_checks(site, pages, results):
     sm = site / "sitemap.xml"
     try:
         locs = [l.strip() for l in re.findall(r"<loc>([^<]+)</loc>", sm.read_text(encoding="utf-8"))] if sm.exists() else []
-    except OSError:
+    except (OSError, ValueError):  # ValueError covers UnicodeDecodeError
         locs = []
     base, _ = site_base(pages.get("index.html"), locs)
     if (site / "robots.txt").exists() and base != "/":

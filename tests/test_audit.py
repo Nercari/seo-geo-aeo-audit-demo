@@ -42,7 +42,8 @@ class AuditV2(unittest.TestCase):
 
     def test_exports_sorted_and_stable(self):
         audit.run(BEFORE, out=self.out)
-        rows = list(csv.DictReader(open(self.out / "findings_before.csv")))
+        with open(self.out / "findings_before.csv", encoding="utf-8", newline="") as fh:
+            rows = list(csv.DictReader(fh))
         self.assertEqual(list(rows[0].keys()), ["url", "check", "tier", "issue", "fix"])
         keys = [(audit.TIER_ORDER[r["tier"]], r["check"], r["url"], r["issue"]) for r in rows]
         self.assertEqual(keys, sorted(keys))
@@ -134,47 +135,141 @@ class NapAndSitemap(unittest.TestCase):
     NAP = "Call Bramble Bakery at 555-123-4567, 12 Oak Street, Ashby."
     LD = '<script type="application/ld+json">{"@type": "Bakery", "name": "Bramble Bakery"}</script>'
 
+    def ld(self, name="Bramble Bakery", phone="555-123-4567", street="12 Oak Street", typ='"Bakery"'):
+        return ('<script type="application/ld+json">{"@type": %s, "name": "%s", "telephone": "%s", '
+                '"address": {"@type": "PostalAddress", "streetAddress": "%s"}}</script>' % (typ, name, phone, street))
+
+    def nap(self, pages):
+        """pages: {file: (head, body)}"""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        d = Path(tmp.name)
+        for n, (head, body) in pages.items():
+            (d / n).write_text(self.PAGE.format(t=n, c="https://x.example/" + n, h=head, b=body), encoding="utf-8")
+        return audit.audit(d)["nap_consistent"][0]
+
     def test_nap_uses_site_declared_name_not_hardcoded(self):
         r = self.make({"index.html": ("https://x.example/", self.NAP), "a.html": ("https://x.example/a.html", self.NAP)}, home_head=self.LD)
         self.assertTrue(r["nap_consistent"][0][0], r["nap_consistent"])
-        self.assertNotIn("Larkspur", Path(audit.__file__).read_text(encoding="utf-8"))
-        self.assertFalse(hasattr(audit, "NAME_RE"))
+        for gone in ("NAME_RE", "name_re", "name_variant", "guess_brand"):
+            self.assertFalse(hasattr(audit, gone), gone)
 
-    def test_nap_declared_name_in_ordinary_text_is_not_a_variant(self):
+    def test_nap_body_text_never_scanned(self):
         bodies = ["Visit Bramble Bakery.", "Bramble Bakery's bread", "<b>Bramble</b> Bakery", "Bramble\u00a0Bakery",
-                  "</p><h2>Bramble Bakery Opening Hours</h2><p>"]
+                  "</p><h2>Bramble Bakery Opening Hours</h2><p>", "Bramble Bakery Co. since 1990", "Bramble Bakers Co.",
+                  "Larkspur Plumbing, call 555-999-0000 at 99 Elm Street"]
         for b in bodies:
             with self.subTest(b=b):
-                r = self.make({"index.html": ("https://x.example/", self.NAP + " " + b)}, home_head=self.LD)
-                self.assertTrue(r["nap_consistent"][0][0], r["nap_consistent"])
+                ok, _, why = self.nap({"index.html": (self.ld(), self.NAP + " " + b)})
+                self.assertTrue(ok, why)
 
-    def test_nap_suffix_variant_flagged(self):
-        r = self.make({"index.html": ("https://x.example/", self.NAP + " Bramble Bakery Co. since 1990")}, home_head=self.LD)
-        ok, _, why = r["nap_consistent"][0]
+    def test_nap_rev4_blocker_names(self):
+        cases = [("Bread and Butter Bakery", "Bread and Butter Bakery bakes daily. Bread is good."),
+                 ("House of Bread", "House of Bread. The House is open."),
+                 ("Studio 54 Salon", "Studio 54 Salon, Studio hours vary."),
+                 ("Dr. Smith's Dental", "Dr. Smith's Dental. Dr. Smith is in."),
+                 ("Ashby Plumbing", "Ashby Plumbing, 12 Oak Street, Ashby."),
+                 ("Main Street Bakery", "Main Street Bakery at 12 Main Street."),
+                 ("Quillmere Plumbing", "</p><a>Quillmere Plumbing</a><a>Services</a><h2>Company history</h2><p>")]
+        for name, body in cases:
+            with self.subTest(name=name):
+                ok, _, why = self.nap({"index.html": (self.ld(name=name), body),
+                                       "a.html": (self.ld(name=name), body)})
+                self.assertTrue(ok, why)
+
+    def test_nap_normalisation(self):
+        ok, _, why = self.nap({"index.html": (self.ld(name="Dr. Smith's Dental", phone="+1 (555) 123-4567"), ""),
+                               "a.html": (self.ld(name="dr smith\u2019s\u00a0 DENTAL", phone="555.123.4567", street="12 oak street."), "")})
+        self.assertTrue(ok, why)
+
+    def test_nap_declared_mismatch_flagged(self):
+        for kw, label in (({"name": "Bramble Bakers Co."}, "name"), ({"phone": "555-123-9999"}, "phone"),
+                          ({"street": "14 Mill Street"}, "street address")):
+            with self.subTest(label=label):
+                ok, _, why = self.nap({"index.html": (self.ld(), ""), "a.html": (self.ld(**kw), "")})
+                self.assertFalse(ok)
+                self.assertIn(label + " differs", why)
+                self.assertIn("a.html", why)
+
+    def test_nap_og_site_name_tagline_and_mismatch(self):
+        og = '<meta property="og:site_name" content="%s">'
+        ok, _, why = self.nap({"index.html": (self.ld() + og % "Bramble Bakery | Fresh bread daily", "")})
+        self.assertTrue(ok, why)
+        ok, _, why = self.nap({"index.html": (og % "Bramble Bakery (demo)", "")})
+        self.assertTrue(ok, why)
+        ok, _, why = self.nap({"index.html": (self.ld(), ""), "a.html": (og % "Bramble Bakers", "")})
         self.assertFalse(ok)
-        self.assertIn("Bramble Bakery Co.", why)
+        self.assertIn("Bramble Bakers", why)
 
     def test_nap_prefers_localbusiness_over_organization(self):
         ld = ('<script type="application/ld+json">{"@graph": [{"@type": "Organization", "name": "Agency Ltd"},'
               ' {"@type": "Bakery", "name": "Bramble Bakery"}]}</script>')
         self.assertTrue(self.make({"index.html": ("https://x.example/", self.NAP)}, home_head=ld)["nap_consistent"][0][0])
 
-    def test_nap_name_starting_with_the(self):
-        ld = '<script type="application/ld+json">{"@type": "Bakery", "name": "The Copper Kettle"}</script>'
-        body = "The Copper Kettle at 555-123-4567, 12 Oak Street, Ashby. The bread is fresh."
-        self.assertTrue(self.make({"index.html": ("https://x.example/", body)}, home_head=ld)["nap_consistent"][0][0])
-
-    def test_nap_og_site_name_and_variant_flagged(self):
-        og = '<meta property="og:site_name" content="Bramble Bakery (demo)">'
-        r = self.make({"index.html": ("https://x.example/", self.NAP),
-                       "a.html": ("https://x.example/a.html", self.NAP.replace("Bramble Bakery", "Bramble Bakers Co."))}, home_head=og)
-        ok, _, why = r["nap_consistent"][0]
+    def test_nap_no_declared_name_fails(self):
+        ok, _, why = self.nap({"index.html": ("", self.NAP)})
         self.assertFalse(ok)
-        self.assertIn("Bramble Bakers Co.", why)
+        self.assertIn("declares no business name", why)
+
+    def test_localbusiness_subtypes_and_null_type(self):
+        for typ in ('"Dentist"', '"HairSalon"', '"LegalService"', '"RoofingContractor"', '["Thing", "Restaurant"]'):
+            with self.subTest(typ=typ):
+                ok, _, why = self.nap({"index.html": (self.ld(typ=typ), "")})
+                self.assertTrue(ok, why)
+        for typ in ("null", '[null, 3]', '{"x": 1}'):
+            with self.subTest(typ=typ):
+                ok, _, why = self.nap({"index.html": (self.ld(typ=typ), "")})  # must not crash
+                self.assertFalse(ok)
+
+    def test_nap_microdata_and_address_element(self):
+        md = ('<div itemscope itemtype="https://schema.org/Bakery"><span itemprop="name">Bramble  Bakery</span>'
+              '<div itemprop="author" itemscope itemtype="https://schema.org/Person"><span itemprop="name">Ann Lee</span></div>'
+              '<div itemprop="address" itemscope itemtype="https://schema.org/PostalAddress">'
+              '<span itemprop="streetAddress">12 Oak Street</span></div><span itemprop="telephone">555 123 4567</span></div>')
+        ok, _, why = self.nap({"index.html": (self.ld(), md)})
+        self.assertTrue(ok, why)  # the Person's name is not a business name
+        ok, _, why = self.nap({"index.html": (self.ld(), md.replace("Bramble  Bakery", "Bramble Cakes"))})
+        self.assertFalse(ok)
+        good = "</p><address>Bramble Bakery<br>12 Oak Street, Ashby<br>(555) 123-4567</address><p>"
+        ok, _, why = self.nap({"index.html": (self.ld(), good)})
+        self.assertTrue(ok, why)
+        ok, _, why = self.nap({"index.html": (self.ld(), good.replace("4567", "9999"))})
+        self.assertFalse(ok)
+        ok, _, why = self.nap({"index.html": (self.ld(), good.replace("12 Oak", "14 Mill"))})
+        self.assertFalse(ok)
+        self.assertIn("<address>", why)
 
     def test_nap_old_demo_name_ignored(self):
         r = self.make({"index.html": ("https://x.example/", self.NAP + " Larkspur Plumbing")}, home_head=self.LD)
         self.assertTrue(r["nap_consistent"][0][0])
+
+    def test_extra_checks_survive_non_utf8_sitemap(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        d = Path(tmp.name)
+        (d / "index.html").write_text(self.PAGE.format(t="i", c="https://x.example/", h=self.LD, b=""), encoding="utf-8")
+        (d / "sitemap.xml").write_bytes(b"<urlset><loc>https://x.example/\xff\xfe</loc></urlset>")
+        r = audit.audit(d)
+        self.assertFalse(r["sitemap"][0][0])
+        self.assertIn("unreadable", r["sitemap"][0][2])
+
+    def test_sitemap_skips_none_directive_and_decodes_paths(self):
+        base = "https://x.example/"
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        d = Path(tmp.name)
+        (d / "index.html").write_text(self.PAGE.format(t="i", c=base, h="", b=""), encoding="utf-8")
+        (d / "about us.html").write_text(self.PAGE.format(t="a", c=base + "about%20us.html", h="", b=""), encoding="utf-8")
+        (d / "hid.html").write_text(self.PAGE.format(t="h", c=base + "hid.html", h='<meta name="robots" content="none">', b=""), encoding="utf-8")
+        (d / "robots.txt").write_text("Sitemap: https://x.example/sitemap.xml\n", encoding="utf-8")
+        (d / "sitemap.xml").write_text(f"<urlset><loc>{base}</loc><loc>{base}about%20us.html</loc></urlset>", encoding="utf-8")
+        r = audit.audit(d)
+        self.assertTrue(r["sitemap"][0][0], r["sitemap"])
+
+    def test_sitemap_relative_canonical_does_not_flag_host(self):
+        r = self.make({"index.html": ("/", self.NAP), "a.html": ("/a.html", self.NAP)},
+                      sitemap=["https://x.example/", "https://x.example/a.html"])
+        self.assertNotIn("canonical host", r["sitemap"][0][2])
 
     def test_sitemap_absolute_urls_in_subfolder(self):
         base = "https://x.example/sub/"

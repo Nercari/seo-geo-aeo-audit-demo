@@ -18,7 +18,7 @@ about.html,img_alt,Warn,1 of 1 images without alt,Add short alt text that descri
 index.html,img_alt,Warn,1 of 1 images without alt,Add short alt text that describes each image.
 services.html,img_alt,Warn,2 of 2 images without alt,Add short alt text that describes each image.
 index.html,lang_viewport,Warn,no lang,Add <html lang> and a mobile viewport meta tag.
-site,nap_consistent,Warn,site declares no business name (LocalBusiness JSON-LD or og:site_name); name: 3 variants; phone: 2 variants; address: 2 variants,"Use one business name, phone and street address on every page."
+site,nap_consistent,Warn,"site declares no business name (LocalBusiness JSON-LD, og:site_name or itemprop name)","Use one business name, phone and street address on every page."
 index.html,one_h1,Warn,0 H1,Keep exactly one H1 and make the rest H2 or lower.
 services.html,one_h1,Warn,2 H1,Keep exactly one H1 and make the rest H2 or lower.
 faq.html,schema_faqpage,Warn,no FAQPage schema,Add FAQPage schema whose questions match the visible ones.
