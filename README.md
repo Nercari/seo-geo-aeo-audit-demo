@@ -1,4 +1,4 @@
-# SEO + GEO + AEO audit demo (with llms.txt) — measured, fictional demo by Nercari
+# SEO + GEO + AEO audit demo — measured, fictional demo by Nercari
 
 ![README banner for seo-geo-aeo-audit-demo with repo name, short benefit line, and audit score-bar motif.](docs/assets/banner-seo-geo-aeo-audit-demo.png)
 
