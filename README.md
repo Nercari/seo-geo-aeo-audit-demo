@@ -17,7 +17,7 @@
 - `robots.txt` that allows AI crawlers, `sitemap.xml` and `llms.txt` (`site_after/`)
 - A re-audit with before vs after: 19 checks plus Lighthouse (`audit.py`, `accept.py`, `measurements/`)
 
-Packages: AUDIT / AUDIT + FIXES / AUDIT, FIXES + FAQ (see the Fiverr gig).
+Packages: AUDIT / AUDIT + FIXES / AUDIT, FIXES + FAQ (Fiverr gig coming soon).
 
 ![Result image: Quillmere Plumbing fictional audit checks from 2/19 before to 19/19 after; no ranking claims.](docs/assets/result-seo-geo-aeo-audit-demo.png)
 
