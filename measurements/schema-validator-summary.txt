@@ -1,0 +1,2 @@
+before: 0 schema objects, 0 errors, types=[]
+after: 4 schema objects, 0 errors, types=['Answer', 'Country', 'FAQPage', 'OpeningHoursSpecification', 'Organization', 'Person', 'Plumber', 'PostalAddress', 'Question', 'WebPage']

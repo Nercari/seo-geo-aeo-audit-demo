@@ -1,0 +1,34 @@
+{
+ "before": {
+  "pages_found": 4,
+  "broken_links": [],
+  "pages_with_canonical": 0,
+  "jsonld_items_valid": 0,
+  "jsonld_errors": [],
+  "ai_crawlers_allowed": {
+   "GPTBot": false,
+   "ClaudeBot": false,
+   "PerplexityBot": false,
+   "Google-Extended": false
+  },
+  "sitemap_urls": "no sitemap",
+  "crawled_not_in_sitemap": [],
+  "llms_txt": "missing"
+ },
+ "after": {
+  "pages_found": 4,
+  "broken_links": [],
+  "pages_with_canonical": 4,
+  "jsonld_items_valid": 4,
+  "jsonld_errors": [],
+  "ai_crawlers_allowed": {
+   "GPTBot": true,
+   "ClaudeBot": true,
+   "PerplexityBot": true,
+   "Google-Extended": true
+  },
+  "sitemap_urls": 4,
+  "crawled_not_in_sitemap": [],
+  "llms_txt": "present, title=True, links 3/3 resolve"
+ }
+}

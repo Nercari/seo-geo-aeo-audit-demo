@@ -1,0 +1,9 @@
+# Larkspur Lane Plumbing
+
+> Licensed plumbing company in Marlowe Falls, Oregon (fictional sample business). Emergency calls 24 hours on (555) 010-0142. Address: 14 Mill Street, Marlowe Falls, OR 97000.
+
+## Pages
+
+- [Services and typical prices](https://larkspur-plumbing.example/services.html): drain cleaning, leaks, water heaters, fixtures
+- [FAQ](https://larkspur-plumbing.example/faq.html): short answers on cost, night calls, leaks, timing, service area
+- [About and contact](https://larkspur-plumbing.example/about.html): hours, address, service area
