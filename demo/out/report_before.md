@@ -22,7 +22,7 @@
 | jsonld_valid | Error | Page has JSON-LD and it parses | FAIL | about.html: none or invalid; faq.html: none or invalid; index.html: none or invalid; services.html: none or invalid |
 | schema_localbusiness | Warn | Home page has LocalBusiness schema with name, phone, address | FAIL | index.html: missing or incomplete |
 | schema_faqpage | Warn | FAQ page has FAQPage schema matching the visible questions | FAIL | faq.html: no FAQPage schema |
-| nap_consistent | Warn | One business name, one phone, one street address on all pages | FAIL | site: name: 3 variants; phone: 2 variants; address: 2 variants |
+| nap_consistent | Warn | One business name, one phone, one street address on all pages | FAIL | site: site declares no business name (LocalBusiness JSON-LD or og:site_name); name: 3 variants; phone: 2 variants; address: 2 variants |
 | faq_answer_first | Notice | FAQ has 5+ questions, each with an answer of 60 words or fewer | FAIL | faq.html: 3 Q&A pairs; 1 answers over 60 words |
 | sitemap | Error | sitemap.xml lists every page and robots.txt points to it | FAIL | sitemap.xml: sitemap.xml missing |
 | robots_ai | Error | robots.txt does not block search and AI crawlers | FAIL | robots.txt: blocks: GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended |
@@ -51,7 +51,7 @@
 | Warn | index.html | img_alt | 1 of 1 images without alt | Add short alt text that describes each image. |
 | Warn | services.html | img_alt | 2 of 2 images without alt | Add short alt text that describes each image. |
 | Warn | index.html | lang_viewport | no lang | Add <html lang> and a mobile viewport meta tag. |
-| Warn | site | nap_consistent | name: 3 variants; phone: 2 variants; address: 2 variants | Use one business name, phone and street address on every page. |
+| Warn | site | nap_consistent | site declares no business name (LocalBusiness JSON-LD or og:site_name); name: 3 variants; phone: 2 variants; address: 2 variants | Use one business name, phone and street address on every page. |
 | Warn | index.html | one_h1 | 0 H1 | Keep exactly one H1 and make the rest H2 or lower. |
 | Warn | services.html | one_h1 | 2 H1 | Keep exactly one H1 and make the rest H2 or lower. |
 | Warn | faq.html | schema_faqpage | no FAQPage schema | Add FAQPage schema whose questions match the visible ones. |

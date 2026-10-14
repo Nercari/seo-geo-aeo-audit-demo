@@ -14,6 +14,7 @@ prediction of rankings or AI citations. The NAP name/address patterns are writte
 for this sample business (Quillmere Plumbing); change them for a real client.
 """
 import json
+import os
 import re
 import sys
 from html.parser import HTMLParser
@@ -27,7 +28,41 @@ MAX_ANSWER_WORDS = 60
 MIN_FAQ = 5
 
 PHONE_RE = re.compile(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]\d{4}")
-NAME_RE = re.compile(r"Quillmere\s+(?:Lane\s+)?Plumb(?:ing|ers)(?:\s+Co\.?)?")
+
+
+def site_name(pages):
+    """The business name the site declares about itself: LocalBusiness JSON-LD name, else og:site_name."""
+    order = sorted(pages, key=lambda n: n != "index.html")
+    for n in order:
+        for o in parse_ld(pages[n])[1]:
+            if o.get("name") and any(t in ("LocalBusiness", "Plumber", "Store", "Bakery", "Organization") or t.endswith("Business") for t in types_of(o)):
+                return str(o["name"]).strip()
+    for n in order:
+        v = pages[n].meta.get("og:site_name", "").strip()
+        if v:
+            return re.sub(r"\s*\(.*\)\s*$", "", v).strip()
+    return ""
+
+
+def guess_brand(pages):
+    """Fallback when the site declares no name: the capitalised word that most often comes right
+    before a business-type word (Plumbing, Bakery, Co., LLC ...)."""
+    from collections import Counter
+    c = Counter()
+    for p in pages.values():
+        c.update(re.findall(r"\b([A-Z][A-Za-z'-]+)[ \t]+(?:[A-Z][a-z]+[ \t]+)?" + BUSINESS_WORDS, " ".join(p.text)))
+    return max(c, key=lambda w: (c[w], w)) if c else ""
+
+
+BUSINESS_WORDS = r"(?:Plumb\w*|Bakery|Bakers?|Store|Shop|Salon|Clinic|Dental|Law|Studio|Caf[eé]|Restaurant|Services|Co\b|Company|Inc\b|LLC\b|Ltd\b)"
+
+
+def name_re(name):
+    """Mentions that start with the brand word and run on through capitalised words (catches 'X Lane Plumbers', 'X Co.')."""
+    brand = name.split()[0]
+    return re.compile(re.escape(brand) + r"(?:[ \t]+(?:[A-Z][A-Za-z&'-]*\.?|&))*")
+
+
 ADDR_RE = re.compile(r"\b\d{1,4} [A-Z][a-z]+ (?:Street|St\.?|Road|Rd\.?|Avenue|Ave\.?)(?=[\s,<]|$)")
 
 # (id, why it matters in one line, scope)
@@ -120,7 +155,7 @@ class PageParser(HTMLParser):
             self._in_title = True
             self.title = ""
         elif tag == "meta":
-            n = (a.get("name") or "").lower()
+            n = (a.get("name") or a.get("property") or "").lower()
             if n:
                 self.meta[n] = a.get("content") or ""
             if n == "viewport":
@@ -282,13 +317,20 @@ def audit(site):
     # NAP
     alltext = " ".join(" ".join(p.text) for p in pages.values())
     per = {}
+    sname = site_name(pages)
+    brand = sname or guess_brand(pages)
+    nre = name_re(brand) if brand else None
     for n, p in pages.items():
         tx = " ".join(p.text)
-        per[n] = (set(NAME_RE.findall(tx)), {re.sub(r"\D", "", x) for x in PHONE_RE.findall(tx)}, set(ADDR_RE.findall(tx)))
+        per[n] = ({m.strip() for m in nre.findall(tx)} if nre else set(), {re.sub(r"\D", "", x) for x in PHONE_RE.findall(tx)}, set(ADDR_RE.findall(tx)))
     names = set().union(*(v[0] for v in per.values())) if per else set()
     phones = set().union(*(v[1] for v in per.values())) if per else set()
     addrs = set().union(*(v[2] for v in per.values())) if per else set()
     problems = [f"{label}: {len(s)} variants" for label, s in (("name", names), ("phone", phones), ("address", addrs)) if len(s) != 1]
+    if not sname:
+        problems.insert(0, "site declares no business name (LocalBusiness JSON-LD or og:site_name)")
+    elif names and names != {sname}:
+        problems.append("name differs from declared '" + sname + "': " + ", ".join(sorted(names - {sname})))
     add("nap_consistent", not problems, "site", "; ".join(problems))
 
     # FAQ answer-first
@@ -312,7 +354,18 @@ def audit(site):
         try:
             locs = re.findall(r"<loc>([^<]+)</loc>", sm.read_text(encoding="utf-8"))
             paths = {urlparse(l).path or "/" for l in locs}
-            expected = {"/" if n == "index.html" else "/" + n for n in pages}
+            # site may live in a subfolder (e.g. GitHub Pages project site): take the base
+            # from the home canonical, else from the sitemap's own common folder
+            hc = urlparse((home.canonical if home else "") or "").path
+            if hc:
+                base = hc.rsplit("/", 1)[0] + "/"
+            elif paths:
+                base = os.path.commonpath([q.rsplit("/", 1)[0] + "/" for q in paths]).rstrip("/") + "/"
+            else:
+                base = "/"
+            listable = [n for n, p in pages.items() if n != "404.html" and "noindex" not in p.meta.get("robots", "").lower()]
+            expected = {base if n == "index.html" else base + n for n in listable}
+            paths |= {q[:-len("index.html")] for q in paths if q.endswith("/index.html")}
             missing = sorted(expected - paths)
             ref = re.search(r"(?im)^\s*sitemap:\s*\S+sitemap\.xml", rtxt) is not None
             ok = not missing and ref
