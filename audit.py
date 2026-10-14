@@ -10,11 +10,12 @@ The score counts the 19 core checks. Each check also has a tier (Error, Warn,
 Notice); the health % counts only checks with an Error finding.
 
 Rules are fixed and checkable by code. They are good-practice checks, not a
-prediction of rankings or AI citations. The NAP name/address patterns are written
-for this sample business (Quillmere Plumbing); change them for a real client.
+prediction of rankings or AI citations. The NAP name check compares against the
+name the site declares (LocalBusiness JSON-LD, else og:site_name); the street
+address pattern is US-style ("14 Mill Street"), adjust it for other formats.
 """
 import json
-import os
+import posixpath
 import re
 import sys
 from html.parser import HTMLParser
@@ -31,36 +32,63 @@ PHONE_RE = re.compile(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]\d{4}")
 
 
 def site_name(pages):
-    """The business name the site declares about itself: LocalBusiness JSON-LD name, else og:site_name."""
+    """The business name the site declares about itself: LocalBusiness-type JSON-LD name
+    (preferred over a plain Organization, which may be the agency/publisher), else og:site_name."""
     order = sorted(pages, key=lambda n: n != "index.html")
-    for n in order:
-        for o in parse_ld(pages[n])[1]:
-            if o.get("name") and any(t in ("LocalBusiness", "Plumber", "Store", "Bakery", "Organization") or t.endswith("Business") for t in types_of(o)):
-                return str(o["name"]).strip()
+    objs = [o for n in order for o in parse_ld(pages[n])[1] if isinstance(o, dict) and o.get("name")]
+    for pref in (lambda t: t in ("LocalBusiness", "Plumber", "Store", "Bakery") or t.endswith("Business"),
+                 lambda t: t == "Organization"):
+        for o in objs:
+            if any(pref(t) for t in types_of(o)):
+                return clean_text(str(o["name"]))
     for n in order:
         v = pages[n].meta.get("og:site_name", "").strip()
         if v:
-            return re.sub(r"\s*\(.*\)\s*$", "", v).strip()
+            return clean_text(re.sub(r"\s*\(.*\)\s*$", "", v))
     return ""
+
+
+def clean_text(t):
+    """Collapse all whitespace (incl. non-breaking spaces) to single spaces."""
+    return " ".join(t.replace("\xa0", " ").split())
 
 
 def guess_brand(pages):
     """Fallback when the site declares no name: the capitalised word that most often comes right
-    before a business-type word (Plumbing, Bakery, Co., LLC ...)."""
+    before a business-type word (Quillmere Plumbing, Bramble Bakery, Acme Co.). Message wording only:
+    the check already fails when no name is declared."""
     from collections import Counter
     c = Counter()
     for p in pages.values():
-        c.update(re.findall(r"\b([A-Z][A-Za-z'-]+)[ \t]+(?:[A-Z][a-z]+[ \t]+)?" + BUSINESS_WORDS, " ".join(p.text)))
+        c.update(re.findall(r"\b([A-Z][A-Za-z-]+) " + BUSINESS_WORDS, clean_text(" ".join(p.text))))
     return max(c, key=lambda w: (c[w], w)) if c else ""
 
 
-BUSINESS_WORDS = r"(?:Plumb\w*|Bakery|Bakers?|Store|Shop|Salon|Clinic|Dental|Law|Studio|Caf[eé]|Restaurant|Services|Co\b|Company|Inc\b|LLC\b|Ltd\b)"
+BUSINESS_WORDS = r"(?:Plumb\w*|Bakery|Bakers?|Store|Shop|Salon|Clinic|Dental|Law|Studio|Caf[eé]|Restaurant|Services|Co|Company|Inc|LLC|Ltd)\b"
+SUFFIX_RE = re.compile(r"^(?:Co|Company|Inc|LLC|Ltd|Corp|Plumbers?|Plumbing|Bakers?|Bakery|Group|Services)\.?$")
+LEAD_WORDS = {"The", "A", "An", "St", "St."}
 
 
 def name_re(name):
-    """Mentions that start with the brand word and run on through capitalised words (catches 'X Lane Plumbers', 'X Co.')."""
-    brand = name.split()[0]
-    return re.compile(re.escape(brand) + r"(?:[ \t]+(?:[A-Z][A-Za-z&'-]*\.?|&))*")
+    """Mentions: the brand word(s) plus the capitalised words that follow, stopping at punctuation
+    ("Acme Co." keeps its full stop only for Co/Inc/Ltd/Corp). The brand is the first word of the name,
+    or the first two when the first is The/A/An/St."""
+    w = name.split()
+    brand = " ".join(w[:2] if len(w) > 1 and w[0] in LEAD_WORDS else w[:1])
+    return re.compile(r"(?<![A-Za-z])" + re.escape(brand) + r"(?:(?: (?:Co|Inc|Ltd|Corp)\.)| [A-Z][A-Za-z&-]*| &)*(?![A-Za-z])")
+
+
+def name_variant(mention, declared):
+    """None if the mention is the declared name (optionally followed by an ordinary capitalised word, as in a
+    heading 'Bramble Bakery Opening Hours'); otherwise the mention itself, as a variant."""
+    if not declared:
+        return mention
+    if mention == declared:
+        return None
+    if mention.startswith(declared + " "):
+        nxt = mention[len(declared) + 1:].split()[0]
+        return mention if SUFFIX_RE.match(nxt) else None
+    return mention
 
 
 ADDR_RE = re.compile(r"\b\d{1,4} [A-Z][a-z]+ (?:Street|St\.?|Road|Rd\.?|Avenue|Ave\.?)(?=[\s,<]|$)")
@@ -240,6 +268,26 @@ def robots_blocked(text, bot):
     return any(k == "disallow" and v == "/" for g in pick for k, v in g[1])
 
 
+def site_base(home, locs):
+    """Folder the site is served from, e.g. '/' or '/seo-geo-aeo-audit-demo/' (GitHub Pages project site).
+    From the home page canonical when present, else the sitemap's common folder. Returns (base, parsed home URL)."""
+    hu = urlparse(home.canonical) if home is not None and home.canonical else None
+    if hu is not None and hu.path:
+        hp = hu.path
+        if not hp.endswith("/"):
+            hp = hp.rsplit("/", 1)[0] + "/" if "." in hp.rsplit("/", 1)[1] else hp + "/"
+        return hp, hu
+    paths = [urlparse(l).path for l in locs]
+    paths = [q for q in paths if q.startswith("/")]
+    if not paths:
+        return "/", hu
+    return posixpath.commonpath([q.rsplit("/", 1)[0] + "/" for q in paths]).rstrip("/") + "/", hu
+
+
+def is_noindex(p):
+    return any("noindex" in p.meta.get(k, "").lower() for k in ("robots", "googlebot", "bingbot"))
+
+
 def audit(site):
     site = Path(site)
     files = sorted(site.glob("*.html"))
@@ -315,14 +363,14 @@ def audit(site):
     add("schema_faqpage", ok, "faq.html", why)
 
     # NAP
-    alltext = " ".join(" ".join(p.text) for p in pages.values())
     per = {}
     sname = site_name(pages)
     brand = sname or guess_brand(pages)
     nre = name_re(brand) if brand else None
     for n, p in pages.items():
-        tx = " ".join(p.text)
-        per[n] = ({m.strip() for m in nre.findall(tx)} if nre else set(), {re.sub(r"\D", "", x) for x in PHONE_RE.findall(tx)}, set(ADDR_RE.findall(tx)))
+        tx = clean_text(" ".join(p.text))
+        found = set(nre.findall(tx)) if nre else set()
+        per[n] = ({name_variant(m, sname) or sname for m in found} if sname else found, {re.sub(r"\D", "", x) for x in PHONE_RE.findall(tx)}, set(ADDR_RE.findall(tx)))
     names = set().union(*(v[0] for v in per.values())) if per else set()
     phones = set().union(*(v[1] for v in per.values())) if per else set()
     addrs = set().union(*(v[2] for v in per.values())) if per else set()
@@ -352,25 +400,23 @@ def audit(site):
     ok, why = False, "sitemap.xml missing"
     if sm.exists():
         try:
-            locs = re.findall(r"<loc>([^<]+)</loc>", sm.read_text(encoding="utf-8"))
+            locs = [l.strip() for l in re.findall(r"<loc>([^<]+)</loc>", sm.read_text(encoding="utf-8"))]
+            base, home_u = site_base(home, locs)
             paths = {urlparse(l).path or "/" for l in locs}
-            # site may live in a subfolder (e.g. GitHub Pages project site): take the base
-            # from the home canonical, else from the sitemap's own common folder
-            hc = urlparse((home.canonical if home else "") or "").path
-            if hc:
-                base = hc.rsplit("/", 1)[0] + "/"
-            elif paths:
-                base = os.path.commonpath([q.rsplit("/", 1)[0] + "/" for q in paths]).rstrip("/") + "/"
-            else:
-                base = "/"
-            listable = [n for n, p in pages.items() if n != "404.html" and "noindex" not in p.meta.get("robots", "").lower()]
-            expected = {base if n == "index.html" else base + n for n in listable}
             paths |= {q[:-len("index.html")] for q in paths if q.endswith("/index.html")}
+            listable = [n for n, p in pages.items() if n != "404.html" and not is_noindex(p)]
+            expected = {base if n == "index.html" else base + n for n in listable}
+            if home_u is not None:
+                off = sorted(l for l in locs if (urlparse(l).scheme, urlparse(l).netloc) != (home_u.scheme, home_u.netloc))
+            else:
+                off = []
             missing = sorted(expected - paths)
             ref = re.search(r"(?im)^\s*sitemap:\s*\S+sitemap\.xml", rtxt) is not None
-            ok = not missing and ref
-            why = "" if ok else ("pages missing: " + ", ".join(missing) if missing else "robots.txt has no Sitemap line")
-        except OSError:
+            ok = not missing and ref and not off
+            why = "" if ok else ("pages missing: " + ", ".join(missing) if missing else
+                                 "URLs not on the canonical host: " + ", ".join(off[:3]) if off else "robots.txt has no Sitemap line")
+        except (OSError, ValueError) as e:
+            why = f"sitemap.xml unreadable: {e}"
             pass
     add("sitemap", ok, "sitemap.xml", why)
     if not robots.exists():
@@ -406,7 +452,15 @@ def norm(t):
 def extra_checks(site, pages, results):
     for cid, _, _ in EXTRA_CHECKS:
         results.setdefault(cid, [])
-    if (site / "robots.txt").exists():
+    sm = site / "sitemap.xml"
+    try:
+        locs = [l.strip() for l in re.findall(r"<loc>([^<]+)</loc>", sm.read_text(encoding="utf-8"))] if sm.exists() else []
+    except OSError:
+        locs = []
+    base, _ = site_base(pages.get("index.html"), locs)
+    if (site / "robots.txt").exists() and base != "/":
+        results["robots_root"].append((False, "robots.txt", f"site is served from {base}; crawlers only read /robots.txt at the host root, so this file is ignored"))
+    elif (site / "robots.txt").exists():
         results["robots_root"].append((True, "robots.txt", ""))
     else:
         nested = sorted(str(p.relative_to(site)) for p in site.rglob("robots.txt"))

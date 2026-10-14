@@ -137,7 +137,32 @@ class NapAndSitemap(unittest.TestCase):
     def test_nap_uses_site_declared_name_not_hardcoded(self):
         r = self.make({"index.html": ("https://x.example/", self.NAP), "a.html": ("https://x.example/a.html", self.NAP)}, home_head=self.LD)
         self.assertTrue(r["nap_consistent"][0][0], r["nap_consistent"])
-        self.assertNotRegex(audit.__dict__.get("NAME_RE", re.compile("x^")).pattern, "Larkspur|Quillmere")
+        self.assertNotIn("Larkspur", Path(audit.__file__).read_text(encoding="utf-8"))
+        self.assertFalse(hasattr(audit, "NAME_RE"))
+
+    def test_nap_declared_name_in_ordinary_text_is_not_a_variant(self):
+        bodies = ["Visit Bramble Bakery.", "Bramble Bakery's bread", "<b>Bramble</b> Bakery", "Bramble\u00a0Bakery",
+                  "</p><h2>Bramble Bakery Opening Hours</h2><p>"]
+        for b in bodies:
+            with self.subTest(b=b):
+                r = self.make({"index.html": ("https://x.example/", self.NAP + " " + b)}, home_head=self.LD)
+                self.assertTrue(r["nap_consistent"][0][0], r["nap_consistent"])
+
+    def test_nap_suffix_variant_flagged(self):
+        r = self.make({"index.html": ("https://x.example/", self.NAP + " Bramble Bakery Co. since 1990")}, home_head=self.LD)
+        ok, _, why = r["nap_consistent"][0]
+        self.assertFalse(ok)
+        self.assertIn("Bramble Bakery Co.", why)
+
+    def test_nap_prefers_localbusiness_over_organization(self):
+        ld = ('<script type="application/ld+json">{"@graph": [{"@type": "Organization", "name": "Agency Ltd"},'
+              ' {"@type": "Bakery", "name": "Bramble Bakery"}]}</script>')
+        self.assertTrue(self.make({"index.html": ("https://x.example/", self.NAP)}, home_head=ld)["nap_consistent"][0][0])
+
+    def test_nap_name_starting_with_the(self):
+        ld = '<script type="application/ld+json">{"@type": "Bakery", "name": "The Copper Kettle"}</script>'
+        body = "The Copper Kettle at 555-123-4567, 12 Oak Street, Ashby. The bread is fresh."
+        self.assertTrue(self.make({"index.html": ("https://x.example/", body)}, home_head=ld)["nap_consistent"][0][0])
 
     def test_nap_og_site_name_and_variant_flagged(self):
         og = '<meta property="og:site_name" content="Bramble Bakery (demo)">'
@@ -163,6 +188,45 @@ class NapAndSitemap(unittest.TestCase):
         ok, _, why = r["sitemap"][0]
         self.assertFalse(ok)
         self.assertIn("/sub/a.html", why)
+
+    def test_sitemap_no_canonical_uses_sitemap_folder_and_survives_relative_locs(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        d = Path(tmp.name)
+        for n in ("index.html", "a.html"):
+            (d / n).write_text("<html><body><p>x</p></body></html>", encoding="utf-8")
+        (d / "robots.txt").write_text("Sitemap: https://x.example/sub/sitemap.xml\n", encoding="utf-8")
+        sm = d / "sitemap.xml"
+        sm.write_text("<urlset><url><loc>https://x.example/sub/</loc></url><url><loc>https://x.example/sub/a.html</loc></url></urlset>", encoding="utf-8")
+        self.assertTrue(audit.audit(d)["sitemap"][0][0])
+        sm.write_text("<urlset><url><loc>a.html</loc></url><url><loc>https://x.example/sub/</loc></url></urlset>", encoding="utf-8")
+        self.assertFalse(audit.audit(d)["sitemap"][0][0])  # fails the check, does not crash
+
+    def test_sitemap_other_host_fails_and_whitespace_ok(self):
+        base = "https://x.example/sub/"
+        pages = {"index.html": (base, self.NAP), "a.html": (base + "a.html", self.NAP)}
+        self.assertFalse(self.make(pages, sitemap=["https://staging.example/sub/", "https://staging.example/sub/a.html"])["sitemap"][0][0])
+        self.assertTrue(self.make(pages, sitemap=["\n  " + base + "  \n", base + "a.html"])["sitemap"][0][0])
+
+    def test_sitemap_canonical_without_trailing_slash(self):
+        r = self.make({"index.html": ("https://x.example/sub", self.NAP), "a.html": ("https://x.example/sub/a.html", self.NAP)},
+                      sitemap=["https://x.example/sub/", "https://x.example/sub/a.html"])
+        self.assertTrue(r["sitemap"][0][0], r["sitemap"])
+
+    def test_robots_root_warns_for_subfolder_site(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        d = Path(tmp.name)
+        (d / "index.html").write_text(self.PAGE.format(t="i", c="https://x.example/sub/", h="", b=""), encoding="utf-8")
+        (d / "robots.txt").write_text("User-agent: *\n", encoding="utf-8")
+        res = {}
+        pages = {}
+        for f in sorted(d.glob("*.html")):
+            pp = audit.PageParser(); pp.feed(f.read_text(encoding="utf-8")); pages[f.name] = pp
+        audit.extra_checks(d, pages, res)
+        ok, _, why = res["robots_root"][0]
+        self.assertFalse(ok)
+        self.assertIn("/sub/", why)
 
     def test_sitemap_wrong_folder_fails(self):
         base = "https://x.example/sub/"
