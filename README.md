@@ -4,7 +4,6 @@
 
 [![checks](https://github.com/Nercari/seo-geo-aeo-audit-demo/actions/workflows/checks.yml/badge.svg)](https://github.com/Nercari/seo-geo-aeo-audit-demo/actions/workflows/checks.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-nercari.github.io-blue)](https://nercari.github.io/seo-geo-aeo-audit-demo/)
-[![llms.txt](https://img.shields.io/badge/llms.txt-ready-green)](./llms.txt)
 
 **Audit, fixes and `llms.txt`: 2/19 to 19/19 checks.** A technical SEO and AI-answer readiness audit, the fixes, and a re-audit you can run yourself (`python3 accept.py`).
 
