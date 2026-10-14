@@ -8,7 +8,7 @@
 
 **Audit, fixes and `llms.txt`: 2/19 to 19/19 checks.** A technical SEO and AI-answer readiness audit, the fixes, and a re-audit you can run yourself (`python3 accept.py`).
 
-**[Hire this on Fiverr →](https://www.fiverr.com/nercari/PLACEHOLDER-seo-geo-aeo)** · **[See live demo](https://nercari.github.io/seo-geo-aeo-audit-demo/)**
+**Fiverr gigs coming soon** · **[See live demo](https://nercari.github.io/seo-geo-aeo-audit-demo/)**
 
 ## What you get
 
