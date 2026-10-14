@@ -1,14 +1,23 @@
-# SEO + GEO + AEO audit demo (with llms.txt) — demo project by Nercari
+# SEO + GEO + AEO audit demo (with llms.txt) — measured, fictional demo by Nercari
 
-**What a buyer gets:** an audit of technical SEO and AI-answer readiness, the fixes (written or applied), schema markup, llms.txt, and a re-audit showing before vs after.
+[![checks](https://github.com/Nercari/seo-geo-aeo-audit-demo/actions/workflows/checks.yml/badge.svg)](https://github.com/Nercari/seo-geo-aeo-audit-demo/actions/workflows/checks.yml)
+[![Live demo](https://img.shields.io/badge/live%20demo-nercari.github.io-blue)](https://nercari.github.io/seo-geo-aeo-audit-demo/)
+[![llms.txt](https://img.shields.io/badge/llms.txt-ready-green)](./llms.txt)
 
-## Results (real runs, 2026-10-14, fictional "Larkspur Plumbing" site)
+**What a buyer gets:** an audit of technical SEO and AI-answer readiness, the fixes (written or applied), schema markup, `llms.txt`, and a re-audit showing before vs after.
+
+> Fictional demo only. Quillmere Plumbing (Marlowe Falls, OR) is not a real business and is not client work. Numbers below come from reproducible local runs dated **2026-10-14**. No search rankings or AI citations are promised.
+
+## What did the fixes change?
+
 ### Local audit (`python3 accept.py`)
+
 | | site_before | site_after |
 |---|---|---|
 | Checks passing | **2/19** | **19/19** |
 
 ### Lighthouse 13.5 (mobile, local server, index.html)
+
 | Category | Before | After |
 |---|---|---|
 | Performance | 100 | 100 |
@@ -17,6 +26,7 @@
 | SEO | 92 | 100 |
 
 ### Schema.org validator (validator.schema.org, all 4 pages)
+
 | | Before | After |
 |---|---|---|
 | Schema objects found | 0 | 4 |
@@ -24,28 +34,43 @@
 | Types | none | Plumber, FAQPage, Question/Answer, PostalAddress, OpeningHoursSpecification, Organization, Person, WebPage |
 
 ### Crawl and AI-answer readiness
+
 | | Before | After |
 |---|---|---|
 | Pages found / broken links | 4 / 0 | 4 / 0 |
 | Pages with canonical | 0/4 | 4/4 |
-| sitemap.xml | missing | 4 URLs, all crawled pages listed |
-| robots.txt lets GPTBot, ClaudeBot, PerplexityBot, Google-Extended fetch `/` | 0/4 | 4/4 |
-| llms.txt | missing | present, 3/3 links resolve |
-| JSON-LD valid (LocalBusiness/FAQPage required fields) | 0 items | 4 items, 0 errors |
+| AI crawlers allowed (GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended) | blocked / missing | allowed |
+| `llms.txt` | missing | present |
 
-Performance was already high on this small static site, so it didn't move; we report it anyway. No ranking or AI-citation guarantee: these are measurable site checks, not search outcomes.
+Reproduce the local audit: `python3 accept.py` (expects `site_after/` to pass 19/19).
 
-## Reproduce
-```bash
-python3 audit.py; python3 accept.py
-python3 -m http.server 8821 -d site_before & python3 -m http.server 8822 -d site_after &
-npx -y lighthouse http://localhost:8821/index.html --chrome-flags="--headless=new --no-sandbox" --output=json --output=html --output-path=measurements/lighthouse-before
-npx -y lighthouse http://localhost:8822/index.html --chrome-flags="--headless=new --no-sandbox" --output=json --output=html --output-path=measurements/lighthouse-after
-python3 measurements/crawl_schema.py
-bash measurements/schema_validator.sh
-```
-Raw reports: `measurements/lighthouse-*.report.html|json`, `measurements/schema/`, `measurements/crawl-schema.json`.
+## Live demo
 
-Demo project. Larkspur Plumbing is fictional; this is not a client result.
+[nercari.github.io/seo-geo-aeo-audit-demo](https://nercari.github.io/seo-geo-aeo-audit-demo/) — the full Quillmere Plumbing **after** site (title, meta, schema, sitemap, robots, `llms.txt`, visible fictional-demo banner).
 
-**Order an audit:** [Fiverr gig](https://www.fiverr.com/nercari/PLACEHOLDER-seo-geo-aeo) · [Claude skill examples](https://github.com/Nercari/claude-skill-examples) · [Claude Code setup](https://github.com/Nercari/claude-code-setup-example)
+Once indexed, search for **"Quillmere Plumbing"** on Google and Bing; the Nercari demo should be the primary result for that unique name. Indexing usually takes a few days after Search Console / Bing Webmaster submission.
+
+## What's in this repo?
+
+- `site_before/` / `site_after/` — the demo site before and after the fixes
+- `audit.py` / `accept.py` — the 19-check auditor used in CI
+- `measurements/` — Lighthouse reports and other run artifacts
+- `docs/pages/` — the GitHub Pages copy of `site_after` (with Nercari demo labelling)
+- `llms.txt` — machine-readable summary for AI crawlers
+
+## FAQ
+
+### Will my site rank #1 for my keywords?
+This demo does not claim rankings. It shows measurable on-site checks (audit, Lighthouse, schema, crawlability, `llms.txt`). Ranking depends on competition, links and many other factors outside the audit.
+
+### Is Quillmere Plumbing a real plumber?
+No. It is a fictional business in a fictional town (Marlowe Falls, OR), created so the audit and the live demo can be public.
+
+### Can you publish the fixes on my CMS?
+Yes, when you grant a CMS login for the fixes you approve. See the matching Fiverr gig FAQ.
+
+## Order / related
+
+**Order an audit:** [Fiverr gig](https://www.fiverr.com/nercari/PLACEHOLDER-seo-geo-aeo) · [Claude skill examples](https://github.com/Nercari/claude-skill-examples) · [Claude Code setup](https://github.com/Nercari/claude-code-setup-example) · [Nercari profile](https://github.com/Nercari/Nercari)
+
+Delivery-only. No video calls, voice or face content.

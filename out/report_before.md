@@ -5,7 +5,7 @@
 | Check | Rule | Result | Where it fails |
 |---|---|---|---|
 | title_present | Every page has a <title> | PASS |  |
-| title_length | Title is 30-60 characters | FAIL | about.html: 5 chars; faq.html: 95 chars; index.html: 4 chars; services.html: 4 chars |
+| title_length | Title is 30-60 characters | FAIL | about.html: 5 chars; faq.html: 96 chars; index.html: 4 chars; services.html: 4 chars |
 | title_unique | No two pages share a title | FAIL | site: duplicates: index.html, services.html |
 | desc_present | Every page has a meta description | PASS |  |
 | desc_length | Description is 70-160 characters | FAIL | about.html: 18 chars; faq.html: 18 chars; index.html: 33 chars; services.html: 18 chars |

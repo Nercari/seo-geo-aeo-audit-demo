@@ -1141,8 +1141,8 @@
                 "width": 400,
                 "height": 250
               },
-              "snippet": "<img src=\"images/van.svg\" alt=\"Larkspur Lane Plumbing service van parked outside a Marlowe Falls home\">",
-              "nodeLabel": "Larkspur Lane Plumbing service van parked outside a Marlowe Falls home"
+              "snippet": "<img src=\"images/van.svg\" alt=\"Quillmere Plumbing service van parked outside a Marlowe Falls home\">",
+              "nodeLabel": "Quillmere Plumbing service van parked outside a Marlowe Falls home"
             }
           }
         ]
@@ -2767,7 +2767,7 @@
                 "height": 17
               },
               "snippet": "<strong>",
-              "nodeLabel": "Larkspur Lane Plumbing"
+              "nodeLabel": "Quillmere Plumbing"
             },
             "value": {
               "type": "numeric",

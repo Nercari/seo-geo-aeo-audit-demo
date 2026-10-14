@@ -1,0 +1,13 @@
+# Quillmere Plumbing
+
+> Licensed plumbing company in Marlowe Falls, Oregon (FICTIONAL demo business created by Nercari to show SEO/GEO/AEO fixes; not a real company). Emergency calls 24 hours on (555) 010-0142. Address: 14 Mill Street, Marlowe Falls, OR 97000.
+
+## Pages
+
+- [Services and typical prices](https://nercari.github.io/seo-geo-aeo-audit-demo/services.html): drain cleaning, leaks, water heaters, fixtures
+- [FAQ](https://nercari.github.io/seo-geo-aeo-audit-demo/faq.html): short answers on cost, night calls, leaks, timing, service area
+- [About and contact](https://nercari.github.io/seo-geo-aeo-audit-demo/about.html): hours, address, service area
+
+## About this demo
+
+- [Source, audit and before/after measurements](https://github.com/Nercari/seo-geo-aeo-audit-demo): built by Nercari

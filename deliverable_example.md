@@ -1,14 +1,14 @@
-# SEO + GEO audit for Larkspur Lane Plumbing (sample, fictional)
+# SEO + GEO audit for Quillmere Plumbing (sample, fictional)
 
-Site audited: larkspur-plumbing.example, 4 pages. Result: **2 of 19 checks passed**.
+Site audited: quillmere-plumbing.example, 4 pages. Result: **2 of 19 checks passed**.
 
 Fixes are ordered by importance. "Effort" is how long the change takes me or your web person.
 
 ## Priority 1: stop losing visibility (fix first)
 
 1. **Let search and AI crawlers read your site.** Your `robots.txt` blocks GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot and Google-Extended. AI tools cannot read pages they are blocked from. Replace it with the version in the `site_after` folder. This is your choice to make: if you do not want AI tools using your content, say so and we keep the blocks. Effort: 5 minutes.
-2. **Give every page a unique title of 30-60 characters.** Today the home page and services page are both titled "Home" (4 characters), the About page has no title, and the FAQ title is 95 characters and gets cut off. Example fix for the home page: "Plumber in Marlowe Falls, OR | Larkspur Lane Plumbing". Effort: 20 minutes.
-3. **Make your name, address and phone the same on every page.** Three business names appear (Larkspur Lane Plumbing, Larkspur Plumbing Co., Larkspur Lane Plumbers), two phone numbers ((555) 010-0142 and (555) 010-0124) and two street addresses (14 Mill Street and 41 Mill St.). Search and AI tools cannot tell which is true and may show a wrong number. Pick the correct set and use it everywhere. Effort: 30 minutes, plus your confirmation of the right details.
+2. **Give every page a unique title of 30-60 characters.** Today the home page and services page are both titled "Home" (4 characters), the About page has no title, and the FAQ title is 95 characters and gets cut off. Example fix for the home page: "Plumber in Marlowe Falls, OR | Quillmere Plumbing". Effort: 20 minutes.
+3. **Make your name, address and phone the same on every page.** Three business names appear (Quillmere Plumbing, Quillmere Plumbing Co., Quillmere Lane Plumbers), two phone numbers ((555) 010-0142 and (555) 010-0124) and two street addresses (14 Mill Street and 41 Mill St.). Search and AI tools cannot tell which is true and may show a wrong number. Pick the correct set and use it everywhere. Effort: 30 minutes, plus your confirmation of the right details.
 
 ## Priority 2: help Google understand each page
 

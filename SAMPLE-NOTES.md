@@ -1,6 +1,6 @@
 # Sample: SEO + GEO audit and fixes for a small business website
 
-All names, domains, phone numbers and addresses here are fictional (`larkspur-plumbing.example`, 555 numbers). The business, "Larkspur Lane Plumbing" in "Marlowe Falls", does not exist.
+All names, domains, phone numbers and addresses here are fictional (`quillmere-plumbing.example`, 555 numbers). The business, "Quillmere Plumbing" in "Marlowe Falls", does not exist.
 
 **SEO** = getting found on Google. **GEO** = getting found and quoted in AI answers (ChatGPT, Perplexity, Claude, Google AI features).
 

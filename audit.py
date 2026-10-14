@@ -6,7 +6,7 @@ Prints a PASS/FAIL table and a score; writes out/report_<name>.md
 
 Rules are fixed and checkable by code. They are good-practice checks, not a
 prediction of rankings or AI citations. The NAP name/address patterns are written
-for this sample business (Larkspur Lane Plumbing); change them for a real client.
+for this sample business (Quillmere Plumbing); change them for a real client.
 """
 import json
 import re
@@ -22,7 +22,7 @@ MAX_ANSWER_WORDS = 60
 MIN_FAQ = 5
 
 PHONE_RE = re.compile(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]\d{4}")
-NAME_RE = re.compile(r"Larkspur\s+(?:Lane\s+)?Plumb(?:ing|ers)(?:\s+Co\.?)?")
+NAME_RE = re.compile(r"Quillmere\s+(?:Lane\s+)?Plumb(?:ing|ers)(?:\s+Co\.?)?")
 ADDR_RE = re.compile(r"\b\d{1,4} [A-Z][a-z]+ (?:Street|St\.?|Road|Rd\.?|Avenue|Ave\.?)(?=[\s,<]|$)")
 
 # (id, why it matters in one line, scope)

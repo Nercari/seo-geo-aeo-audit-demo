@@ -22,4 +22,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://larkspur-plumbing.example/sitemap.xml
+Sitemap: https://quillmere-plumbing.example/sitemap.xml
