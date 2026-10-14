@@ -2,7 +2,7 @@
 
 **Score: 2/19 checks passed (11%)**
 
-**Health: 79%** (share of checks with no Error finding; Warn and Notice do not lower it)
+**Health: 83%** (share of checks with no Error finding; Warn and Notice do not lower it)
 
 ## Readiness (we control)
 

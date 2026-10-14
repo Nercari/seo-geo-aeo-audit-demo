@@ -76,6 +76,13 @@ TIERS = {
     "robots_ai": ("Error", "Remove the Disallow: / rules for the search and AI crawlers you want."),
     "llms_txt": ("Notice", "Add an llms.txt with a title and links (optional, effect unproven)."),
 }
+TIERS.update({
+    "robots_root": ("Warn", "Move robots.txt to the site root (https://host/robots.txt)."),
+    "jsonld_visible": ("Warn", "Show the same value on the page, or remove it from the JSON-LD."),
+    "snippet_controls": ("Error", "Remove nosnippet / max-snippet:0 from the robots meta tag."),
+    "noindex": ("Error", "Remove noindex from the robots meta tag if the page should be found."),
+})
+VISIBLE_KEYS = {"name", "telephone", "streetAddress", "addressLocality", "postalCode", "text"}
 TIER_ORDER = {"Error": 0, "Warn": 1, "Notice": 2}
 
 # Bots for the access table. Search/answer bots fetch pages to show or cite them;
@@ -321,7 +328,52 @@ def audit(site):
     ll = site / "llms.txt"
     ok = ll.exists() and ll.read_text(encoding="utf-8").lstrip().startswith("# ") and "](" in ll.read_text(encoding="utf-8")
     add("llms_txt", bool(ok), "llms.txt", "" if ok else "missing or malformed")
+    extra_checks(site, pages, results)
     return results
+
+
+def ld_values(o, out):
+    """Collect (key, string) pairs for VISIBLE_KEYS anywhere in a JSON-LD object."""
+    if isinstance(o, dict):
+        for k, v in o.items():
+            if k in VISIBLE_KEYS and isinstance(v, str):
+                out.append((k, v))
+            else:
+                ld_values(v, out)
+    elif isinstance(o, list):
+        for v in o:
+            ld_values(v, out)
+    return out
+
+
+def norm(t):
+    return " ".join(t.lower().split())
+
+
+def extra_checks(site, pages, results):
+    for cid, _, _ in EXTRA_CHECKS:
+        results.setdefault(cid, [])
+    if (site / "robots.txt").exists():
+        results["robots_root"].append((True, "robots.txt", ""))
+    else:
+        nested = sorted(str(p.relative_to(site)) for p in site.rglob("robots.txt"))
+        results["robots_root"].append((False, "robots.txt", "found only at " + ", ".join(nested) if nested else "no robots.txt at root"))
+    for name, p in pages.items():
+        text = norm(" ".join(p.text))
+        digits = re.sub(r"\D", "", text)
+        missing = []
+        for k, v in ld_values(parse_ld(p)[1], []):
+            if k == "telephone":
+                d = re.sub(r"\D", "", v)[-10:]
+                if d and d not in digits:
+                    missing.append(f"{k}={v}")
+            elif norm(v) not in text:
+                missing.append(f"{k}={v[:40]}")
+        results["jsonld_visible"].append((not missing, name, "not visible: " + "; ".join(sorted(set(missing))) if missing else ""))
+        directives = {d.strip().replace(" ", "") for n in ("robots", "googlebot", "bingbot") for d in p.meta.get(n, "").lower().split(",")}
+        snip = sorted(d for d in directives if d in ("nosnippet", "max-snippet:0"))
+        results["snippet_controls"].append((not snip, name, ", ".join(snip)))
+        results["noindex"].append(("noindex" not in directives and "none" not in directives, name, "noindex" if "noindex" in directives or "none" in directives else ""))
 
 
 def summarize(results):
@@ -334,7 +386,14 @@ def summarize(results):
     return rows, passed, len(rows)
 
 
-ALL_CHECKS = CHECKS
+# Extra checks: tiered and exported, but not part of the 19-check score.
+EXTRA_CHECKS = [
+    ("robots_root", "robots.txt sits at the site root", "site"),
+    ("jsonld_visible", "Key JSON-LD values (name, phone, address, FAQ text) are visible on the page", "page"),
+    ("snippet_controls", "No nosnippet or max-snippet:0 that hides text from search and AI answers", "page"),
+    ("noindex", "No noindex on pages meant to be found", "page"),
+]
+ALL_CHECKS = CHECKS + EXTRA_CHECKS
 
 
 def findings(results, checks=None):
