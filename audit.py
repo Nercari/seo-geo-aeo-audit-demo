@@ -1,6 +1,6 @@
 """Deterministic SEO + GEO audit for a small static site (standard library only).
 
-Usage: python samples/g1_seo_geo/audit.py <site_folder>
+Usage: python3 audit.py <site_folder>
 Prints a PASS/FAIL table and a score; writes demo/out/report_<name>.md
 (site_before -> report_before.md, site_after -> report_after.md).
 
@@ -311,7 +311,7 @@ def run(site):
     rows, passed, total = summarize(audit(site))
     label = site.name.replace("site_", "") or site.name
     out = Path(__file__).parent / "demo" / "out"
-    out.mkdir(exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
     (out / f"report_{label}.md").write_text(render(site.name, rows, passed, total), encoding="utf-8")
     return rows, passed, total, label
 
