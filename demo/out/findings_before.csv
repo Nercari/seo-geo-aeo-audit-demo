@@ -1,0 +1,36 @@
+url,check,tier,issue,fix
+about.html,canonical,Error,missing or not absolute https,Add an absolute https canonical link on one host.
+faq.html,canonical,Error,missing or not absolute https,Add an absolute https canonical link on one host.
+index.html,canonical,Error,missing or not absolute https,Add an absolute https canonical link on one host.
+services.html,canonical,Error,missing or not absolute https,Add an absolute https canonical link on one host.
+about.html,jsonld_valid,Error,none or invalid,Add JSON-LD that parses (check it with a JSON validator).
+faq.html,jsonld_valid,Error,none or invalid,Add JSON-LD that parses (check it with a JSON validator).
+index.html,jsonld_valid,Error,none or invalid,Add JSON-LD that parses (check it with a JSON validator).
+services.html,jsonld_valid,Error,none or invalid,Add JSON-LD that parses (check it with a JSON validator).
+robots.txt,robots_ai,Error,"blocks: GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended",Remove the Disallow: / rules for the search and AI crawlers you want.
+sitemap.xml,sitemap,Error,sitemap.xml missing,List every page in sitemap.xml and add a Sitemap line to robots.txt.
+about.html,desc_length,Warn,18 chars,Rewrite the description to 70-160 characters.
+faq.html,desc_length,Warn,18 chars,Rewrite the description to 70-160 characters.
+index.html,desc_length,Warn,33 chars,Rewrite the description to 70-160 characters.
+services.html,desc_length,Warn,18 chars,Rewrite the description to 70-160 characters.
+site,desc_unique,Warn,"duplicates: faq.html, services.html",Give each page its own description.
+about.html,img_alt,Warn,1 of 1 images without alt,Add short alt text that describes each image.
+index.html,img_alt,Warn,1 of 1 images without alt,Add short alt text that describes each image.
+services.html,img_alt,Warn,2 of 2 images without alt,Add short alt text that describes each image.
+index.html,lang_viewport,Warn,no lang,Add <html lang> and a mobile viewport meta tag.
+site,nap_consistent,Warn,name: 3 variants; phone: 2 variants; address: 2 variants,"Use one business name, phone and street address on every page."
+index.html,one_h1,Warn,0 H1,Keep exactly one H1 and make the rest H2 or lower.
+services.html,one_h1,Warn,2 H1,Keep exactly one H1 and make the rest H2 or lower.
+faq.html,schema_faqpage,Warn,no FAQPage schema,Add FAQPage schema whose questions match the visible ones.
+index.html,schema_localbusiness,Warn,missing or incomplete,"Add LocalBusiness schema with name, telephone and address to the home page."
+about.html,title_length,Warn,5 chars,Rewrite the title to 30-60 characters.
+faq.html,title_length,Warn,96 chars,Rewrite the title to 30-60 characters.
+index.html,title_length,Warn,4 chars,Rewrite the title to 30-60 characters.
+services.html,title_length,Warn,4 chars,Rewrite the title to 30-60 characters.
+site,title_unique,Warn,"duplicates: index.html, services.html",Give each page its own title.
+about.html,date_author,Notice,no date,Show a dated <time> element and an author meta tag.
+faq.html,date_author,Notice,no date,Show a dated <time> element and an author meta tag.
+index.html,date_author,Notice,no date,Show a dated <time> element and an author meta tag.
+services.html,date_author,Notice,no date,Show a dated <time> element and an author meta tag.
+faq.html,faq_answer_first,Notice,3 Q&A pairs; 1 answers over 60 words,"Answer each question first, in 60 words or fewer."
+llms.txt,llms_txt,Notice,missing or malformed,"Add an llms.txt with a title and links (optional, effect unproven)."

@@ -1,0 +1,247 @@
+[
+ {
+  "check": "canonical",
+  "fix": "Add an absolute https canonical link on one host.",
+  "issue": "missing or not absolute https",
+  "tier": "Error",
+  "url": "about.html"
+ },
+ {
+  "check": "canonical",
+  "fix": "Add an absolute https canonical link on one host.",
+  "issue": "missing or not absolute https",
+  "tier": "Error",
+  "url": "faq.html"
+ },
+ {
+  "check": "canonical",
+  "fix": "Add an absolute https canonical link on one host.",
+  "issue": "missing or not absolute https",
+  "tier": "Error",
+  "url": "index.html"
+ },
+ {
+  "check": "canonical",
+  "fix": "Add an absolute https canonical link on one host.",
+  "issue": "missing or not absolute https",
+  "tier": "Error",
+  "url": "services.html"
+ },
+ {
+  "check": "jsonld_valid",
+  "fix": "Add JSON-LD that parses (check it with a JSON validator).",
+  "issue": "none or invalid",
+  "tier": "Error",
+  "url": "about.html"
+ },
+ {
+  "check": "jsonld_valid",
+  "fix": "Add JSON-LD that parses (check it with a JSON validator).",
+  "issue": "none or invalid",
+  "tier": "Error",
+  "url": "faq.html"
+ },
+ {
+  "check": "jsonld_valid",
+  "fix": "Add JSON-LD that parses (check it with a JSON validator).",
+  "issue": "none or invalid",
+  "tier": "Error",
+  "url": "index.html"
+ },
+ {
+  "check": "jsonld_valid",
+  "fix": "Add JSON-LD that parses (check it with a JSON validator).",
+  "issue": "none or invalid",
+  "tier": "Error",
+  "url": "services.html"
+ },
+ {
+  "check": "robots_ai",
+  "fix": "Remove the Disallow: / rules for the search and AI crawlers you want.",
+  "issue": "blocks: GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended",
+  "tier": "Error",
+  "url": "robots.txt"
+ },
+ {
+  "check": "sitemap",
+  "fix": "List every page in sitemap.xml and add a Sitemap line to robots.txt.",
+  "issue": "sitemap.xml missing",
+  "tier": "Error",
+  "url": "sitemap.xml"
+ },
+ {
+  "check": "desc_length",
+  "fix": "Rewrite the description to 70-160 characters.",
+  "issue": "18 chars",
+  "tier": "Warn",
+  "url": "about.html"
+ },
+ {
+  "check": "desc_length",
+  "fix": "Rewrite the description to 70-160 characters.",
+  "issue": "18 chars",
+  "tier": "Warn",
+  "url": "faq.html"
+ },
+ {
+  "check": "desc_length",
+  "fix": "Rewrite the description to 70-160 characters.",
+  "issue": "33 chars",
+  "tier": "Warn",
+  "url": "index.html"
+ },
+ {
+  "check": "desc_length",
+  "fix": "Rewrite the description to 70-160 characters.",
+  "issue": "18 chars",
+  "tier": "Warn",
+  "url": "services.html"
+ },
+ {
+  "check": "desc_unique",
+  "fix": "Give each page its own description.",
+  "issue": "duplicates: faq.html, services.html",
+  "tier": "Warn",
+  "url": "site"
+ },
+ {
+  "check": "img_alt",
+  "fix": "Add short alt text that describes each image.",
+  "issue": "1 of 1 images without alt",
+  "tier": "Warn",
+  "url": "about.html"
+ },
+ {
+  "check": "img_alt",
+  "fix": "Add short alt text that describes each image.",
+  "issue": "1 of 1 images without alt",
+  "tier": "Warn",
+  "url": "index.html"
+ },
+ {
+  "check": "img_alt",
+  "fix": "Add short alt text that describes each image.",
+  "issue": "2 of 2 images without alt",
+  "tier": "Warn",
+  "url": "services.html"
+ },
+ {
+  "check": "lang_viewport",
+  "fix": "Add <html lang> and a mobile viewport meta tag.",
+  "issue": "no lang",
+  "tier": "Warn",
+  "url": "index.html"
+ },
+ {
+  "check": "nap_consistent",
+  "fix": "Use one business name, phone and street address on every page.",
+  "issue": "name: 3 variants; phone: 2 variants; address: 2 variants",
+  "tier": "Warn",
+  "url": "site"
+ },
+ {
+  "check": "one_h1",
+  "fix": "Keep exactly one H1 and make the rest H2 or lower.",
+  "issue": "0 H1",
+  "tier": "Warn",
+  "url": "index.html"
+ },
+ {
+  "check": "one_h1",
+  "fix": "Keep exactly one H1 and make the rest H2 or lower.",
+  "issue": "2 H1",
+  "tier": "Warn",
+  "url": "services.html"
+ },
+ {
+  "check": "schema_faqpage",
+  "fix": "Add FAQPage schema whose questions match the visible ones.",
+  "issue": "no FAQPage schema",
+  "tier": "Warn",
+  "url": "faq.html"
+ },
+ {
+  "check": "schema_localbusiness",
+  "fix": "Add LocalBusiness schema with name, telephone and address to the home page.",
+  "issue": "missing or incomplete",
+  "tier": "Warn",
+  "url": "index.html"
+ },
+ {
+  "check": "title_length",
+  "fix": "Rewrite the title to 30-60 characters.",
+  "issue": "5 chars",
+  "tier": "Warn",
+  "url": "about.html"
+ },
+ {
+  "check": "title_length",
+  "fix": "Rewrite the title to 30-60 characters.",
+  "issue": "96 chars",
+  "tier": "Warn",
+  "url": "faq.html"
+ },
+ {
+  "check": "title_length",
+  "fix": "Rewrite the title to 30-60 characters.",
+  "issue": "4 chars",
+  "tier": "Warn",
+  "url": "index.html"
+ },
+ {
+  "check": "title_length",
+  "fix": "Rewrite the title to 30-60 characters.",
+  "issue": "4 chars",
+  "tier": "Warn",
+  "url": "services.html"
+ },
+ {
+  "check": "title_unique",
+  "fix": "Give each page its own title.",
+  "issue": "duplicates: index.html, services.html",
+  "tier": "Warn",
+  "url": "site"
+ },
+ {
+  "check": "date_author",
+  "fix": "Show a dated <time> element and an author meta tag.",
+  "issue": "no date",
+  "tier": "Notice",
+  "url": "about.html"
+ },
+ {
+  "check": "date_author",
+  "fix": "Show a dated <time> element and an author meta tag.",
+  "issue": "no date",
+  "tier": "Notice",
+  "url": "faq.html"
+ },
+ {
+  "check": "date_author",
+  "fix": "Show a dated <time> element and an author meta tag.",
+  "issue": "no date",
+  "tier": "Notice",
+  "url": "index.html"
+ },
+ {
+  "check": "date_author",
+  "fix": "Show a dated <time> element and an author meta tag.",
+  "issue": "no date",
+  "tier": "Notice",
+  "url": "services.html"
+ },
+ {
+  "check": "faq_answer_first",
+  "fix": "Answer each question first, in 60 words or fewer.",
+  "issue": "3 Q&A pairs; 1 answers over 60 words",
+  "tier": "Notice",
+  "url": "faq.html"
+ },
+ {
+  "check": "llms_txt",
+  "fix": "Add an llms.txt with a title and links (optional, effect unproven).",
+  "issue": "missing or malformed",
+  "tier": "Notice",
+  "url": "llms.txt"
+ }
+]

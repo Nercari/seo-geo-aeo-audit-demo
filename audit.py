@@ -1,8 +1,13 @@
 """Deterministic SEO + GEO audit for a small static site (standard library only).
 
-Usage: python3 audit.py <site_folder>
-Prints a PASS/FAIL table and a score; writes demo/out/report_<name>.md
-(site_before -> report_before.md, site_after -> report_after.md).
+Usage: python3 audit.py <site_folder> [--compare prev.json]
+Prints a PASS/FAIL table and a score; writes demo/out/report_<name>.md plus
+findings_<name>.json and findings_<name>.csv (url, check, tier, issue, fix),
+sorted so they diff cleanly against an earlier run or a Screaming Frog export.
+--compare prev.json lists new, fixed and unchanged findings against a past run.
+
+The score counts the 19 core checks. Each check also has a tier (Error, Warn,
+Notice); the health % counts only checks with an Error finding.
 
 Rules are fixed and checkable by code. They are good-practice checks, not a
 prediction of rankings or AI citations. The NAP name/address patterns are written
@@ -47,6 +52,38 @@ CHECKS = [
     ("robots_ai", "robots.txt does not block search and AI crawlers", "site"),
     ("llms_txt", "llms.txt present (proposed convention, ranking effect unproven)", "site"),
 ]
+
+
+# Tier and one-line fix for every check.
+TIERS = {
+    "title_present": ("Error", "Add a unique <title> to the page."),
+    "title_length": ("Warn", f"Rewrite the title to {TITLE_RANGE[0]}-{TITLE_RANGE[1]} characters."),
+    "title_unique": ("Warn", "Give each page its own title."),
+    "desc_present": ("Error", "Add a meta description that sums up the page."),
+    "desc_length": ("Warn", f"Rewrite the description to {DESC_RANGE[0]}-{DESC_RANGE[1]} characters."),
+    "desc_unique": ("Warn", "Give each page its own description."),
+    "one_h1": ("Warn", "Keep exactly one H1 and make the rest H2 or lower."),
+    "img_alt": ("Warn", "Add short alt text that describes each image."),
+    "canonical": ("Error", "Add an absolute https canonical link on one host."),
+    "lang_viewport": ("Warn", "Add <html lang> and a mobile viewport meta tag."),
+    "date_author": ("Notice", "Show a dated <time> element and an author meta tag."),
+    "jsonld_valid": ("Error", "Add JSON-LD that parses (check it with a JSON validator)."),
+    "schema_localbusiness": ("Warn", "Add LocalBusiness schema with name, telephone and address to the home page."),
+    "schema_faqpage": ("Warn", "Add FAQPage schema whose questions match the visible ones."),
+    "nap_consistent": ("Warn", "Use one business name, phone and street address on every page."),
+    "faq_answer_first": ("Notice", f"Answer each question first, in {MAX_ANSWER_WORDS} words or fewer."),
+    "sitemap": ("Error", "List every page in sitemap.xml and add a Sitemap line to robots.txt."),
+    "robots_ai": ("Error", "Remove the Disallow: / rules for the search and AI crawlers you want."),
+    "llms_txt": ("Notice", "Add an llms.txt with a title and links (optional, effect unproven)."),
+}
+TIER_ORDER = {"Error": 0, "Warn": 1, "Notice": 2}
+
+# Bots for the access table. Search/answer bots fetch pages to show or cite them;
+# training bots collect data for model training. Blocking one does not block the other.
+SEARCH_BOTS = ["Googlebot", "Bingbot", "OAI-SearchBot", "ChatGPT-User", "Claude-SearchBot",
+               "Claude-User", "PerplexityBot", "Perplexity-User"]
+TRAINING_BOTS = ["GPTBot", "ClaudeBot", "Google-Extended", "Applebot-Extended", "CCBot",
+                 "meta-externalagent", "Bytespider"]
 
 
 class PageParser(HTMLParser):
@@ -297,35 +334,116 @@ def summarize(results):
     return rows, passed, len(rows)
 
 
-def render(name, rows, passed, total):
-    md = [f"# SEO + GEO audit: {name}", "", f"**Score: {passed}/{total} checks passed ({round(100 * passed / total)}%)**", "",
-          "| Check | Rule | Result | Where it fails |", "|---|---|---|---|"]
+ALL_CHECKS = CHECKS
+
+
+def findings(results, checks=None):
+    """Failing results as sorted dicts with url, check, tier, issue, fix."""
+    out = []
+    for cid, _, _ in (checks or CHECKS):
+        tier, fix = TIERS[cid]
+        for ok, where, det in results.get(cid, []):
+            if not ok:
+                out.append({"url": where, "check": cid, "tier": tier, "issue": det or "fails", "fix": fix})
+    out.sort(key=lambda f: (TIER_ORDER[f["tier"]], f["check"], f["url"], f["issue"]))
+    return out
+
+
+def health(results, checks=None):
+    """Percent of checks with no Error-tier finding (Warn and Notice do not count)."""
+    checks = checks or CHECKS
+    bad = sum(1 for cid, _, _ in checks if TIERS[cid][0] == "Error" and any(not r[0] for r in results.get(cid, [])))
+    return round(100 * (len(checks) - bad) / len(checks))
+
+
+def bot_table(site):
+    robots = Path(site) / "robots.txt"
+    if not robots.exists():
+        return [(kind, b, "allowed (no robots.txt)") for kind, bots in (("search/answer", SEARCH_BOTS), ("training", TRAINING_BOTS)) for b in bots]
+    txt = robots.read_text(encoding="utf-8")
+    return [(kind, b, "blocked" if robots_blocked(txt, b) else "allowed")
+            for kind, bots in (("search/answer", SEARCH_BOTS), ("training", TRAINING_BOTS)) for b in bots]
+
+
+def compare(prev, cur):
+    """Return (new, fixed, unchanged) keyed on url + check + issue."""
+    key = lambda f: (f["url"], f["check"], f["issue"])
+    pk, ck = {key(f): f for f in prev}, {key(f): f for f in cur}
+    srt = lambda d, ks: [d[k] for k in sorted(ks)]
+    return srt(ck, ck.keys() - pk.keys()), srt(pk, pk.keys() - ck.keys()), srt(ck, ck.keys() & pk.keys())
+
+
+def render(name, rows, passed, total, found=None, hp=None, bots=None, diff=None):
+    md = [f"# SEO + GEO audit: {name}", "", f"**Score: {passed}/{total} checks passed ({round(100 * passed / total)}%)**", ""]
+    if hp is not None:
+        md += [f"**Health: {hp}%** (share of checks with no Error finding; Warn and Notice do not lower it)", ""]
+    md += ["## Readiness (we control)", "", "| Check | Tier | Rule | Result | Where it fails |", "|---|---|---|---|---|"]
     for cid, desc, ok, det in rows:
-        md.append(f"| {cid} | {desc} | {'PASS' if ok else 'FAIL'} | {det} |")
-    md += ["", "These are good-practice checks. A high score does not guarantee rankings or AI citations."]
+        md.append(f"| {cid} | {TIERS[cid][0]} | {desc} | {'PASS' if ok else 'FAIL'} | {det} |")
+    if found:
+        md += ["", "### Findings and fixes", "", "| Tier | URL | Check | Issue | Fix |", "|---|---|---|---|---|"]
+        md += [f"| {f['tier']} | {f['url']} | {f['check']} | {f['issue']} | {f['fix']} |" for f in found]
+    if bots:
+        md += ["", "### AI and search bot access (robots.txt)", "", "| Kind | Bot | Access |", "|---|---|---|"]
+        md += [f"| {k} | {b} | {a} |" for k, b, a in bots]
+    if diff:
+        new, fixed, same = diff
+        md += ["", "### Compared with the previous run", "", f"New: {len(new)}, fixed: {len(fixed)}, unchanged: {len(same)}", ""]
+        md += [f"- NEW {f['tier']} {f['url']} {f['check']}: {f['issue']}" for f in new]
+        md += [f"- FIXED {f['tier']} {f['url']} {f['check']}: {f['issue']}" for f in fixed]
+    md += ["", "## Visibility (measured, not promised)", "",
+           "This audit does not measure rankings, traffic or AI citations. Those come from Search Console,",
+           "Bing Webmaster Tools and a logged AI-answer check, reported separately as measured results.",
+           "", "These are good-practice checks. A high score does not guarantee rankings or AI citations."]
     return "\n".join(md) + "\n"
 
 
-def run(site):
+def write_exports(out, label, found):
+    import csv
+    (out / f"findings_{label}.json").write_text(json.dumps(found, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    with open(out / f"findings_{label}.csv", "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=["url", "check", "tier", "issue", "fix"], lineterminator="\n")
+        w.writeheader()
+        w.writerows(found)
+
+
+def run(site, prev=None, out=None):
     site = Path(site)
-    rows, passed, total = summarize(audit(site))
+    results = audit(site)
+    rows, passed, total = summarize(results)
+    found = findings(results, ALL_CHECKS)
+    hp = health(results, ALL_CHECKS)
+    diff = compare(prev, found) if prev is not None else None
     label = site.name.replace("site_", "") or site.name
-    out = Path(__file__).parent / "demo" / "out"
+    out = Path(out) if out else Path(__file__).parent / "demo" / "out"
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"report_{label}.md").write_text(render(site.name, rows, passed, total), encoding="utf-8")
+    (out / f"report_{label}.md").write_text(render(site.name, rows, passed, total, found, hp, bot_table(site), diff), encoding="utf-8")
+    write_exports(out, label, found)
     return rows, passed, total, label
 
 
 def main(argv):
-    if len(argv) != 2:
-        print("usage: python audit.py <site_folder>")
+    args = argv[1:]
+    prev = None
+    if "--compare" in args:
+        i = args.index("--compare")
+        if i + 1 >= len(args):
+            print("usage: python3 audit.py <site_folder> [--compare prev.json]")
+            return 2
+        prev = json.loads(Path(args[i + 1]).read_text(encoding="utf-8"))
+        del args[i:i + 2]
+    if len(args) != 1:
+        print("usage: python3 audit.py <site_folder> [--compare prev.json]")
         return 2
-    rows, passed, total, label = run(argv[1])
+    rows, passed, total, label = run(args[0], prev)
     w = max(len(r[0]) for r in rows)
-    print(f"{'CHECK'.ljust(w)}  RESULT  DETAIL")
+    print(f"{'CHECK'.ljust(w)}  TIER    RESULT  DETAIL")
     for cid, _, ok, det in rows:
-        print(f"{cid.ljust(w)}  {'PASS' if ok else 'FAIL'}    {det}")
+        print(f"{cid.ljust(w)}  {TIERS[cid][0].ljust(6)}  {'PASS' if ok else 'FAIL'}    {det}")
     print(f"\nScore: {passed}/{total} ({round(100 * passed / total)}%)  ->  demo/out/report_{label}.md")
+    if prev is not None:
+        new, fixed, same = compare(prev, json.loads((Path(__file__).parent / "demo" / "out" / f"findings_{label}.json").read_text()))
+        print(f"Compare: {len(new)} new, {len(fixed)} fixed, {len(same)} unchanged")
     return 0
 
 
