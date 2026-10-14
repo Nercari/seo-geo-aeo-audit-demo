@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Crawl + JSON-LD check for site_before/ (port 8821) and site_after/ (port 8822)."""
+"""Crawl + JSON-LD check for demo/site_before/ (port 8821) and demo/site_after/ (port 8822)."""
 import json, re, urllib.request, urllib.parse, urllib.error, urllib.robotparser
 REQ = {"LocalBusiness": ["name", "address", "telephone"], "Plumber": ["name", "address", "telephone"], "FAQPage": ["mainEntity"]}
 BOTS = ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended"]

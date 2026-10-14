@@ -12,9 +12,9 @@
 ## What you get
 
 - An audit report with each failing check and how to fix it (`deliverable_example.md`)
-- The fixes, written or applied: titles, meta, canonicals, alt text, headings (`site_before/` → `site_after/`)
+- The fixes, written or applied: titles, meta, canonicals, alt text, headings (`demo/site_before/` → `demo/site_after/`)
 - Schema markup (LocalBusiness, FAQPage) checked in the schema validator (`measurements/schema-validator-summary.txt`)
-- `robots.txt` that allows AI crawlers, `sitemap.xml` and `llms.txt` (`site_after/`)
+- `robots.txt` that allows AI crawlers, `sitemap.xml` and `llms.txt` (`demo/site_after/`)
 - A re-audit with before vs after: 19 checks plus Lighthouse (`audit.py`, `accept.py`, `measurements/`)
 
 Packages: AUDIT / AUDIT + FIXES / AUDIT, FIXES + FAQ (Fiverr gig coming soon).
@@ -83,11 +83,11 @@ Yes, when you grant a CMS login for the fixes you approve.
 
 ## Docs
 
-- `site_before/` / `site_after/` — the demo site before and after the fixes
+- `demo/site_before/` / `demo/site_after/` — the demo site before and after the fixes
 - `audit.py` / `accept.py` — the 19-check auditor used in CI
 - `deliverable_example.md` — sample audit report
 - `measurements/` — Lighthouse reports and other run artifacts
-- `docs/pages/` — the GitHub Pages copy of `site_after` (with Nercari demo labelling)
+- `docs/pages/` — the GitHub Pages copy of `demo/site_after` (with Nercari demo labelling)
 - `llms.txt` — machine-readable summary for AI crawlers
 
 Other showcases: [Claude skill examples](https://github.com/Nercari/claude-skill-examples) · [Claude Code setup](https://github.com/Nercari/claude-code-setup-example) · [Nercari profile](https://github.com/Nercari/Nercari)

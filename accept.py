@@ -7,8 +7,8 @@ import audit
 HERE = Path(__file__).parent
 MIN_BEFORE_FAILS = 8
 
-rb, pb, tb, _ = audit.run(HERE / "site_before")
-ra, pa, ta, _ = audit.run(HERE / "site_after")
+rb, pb, tb, _ = audit.run(HERE / "demo" / "site_before")
+ra, pa, ta, _ = audit.run(HERE / "demo" / "site_after")
 fails_before = [r[0] for r in rb if not r[2]]
 fails_after = [r[0] for r in ra if not r[2]]
 print(f"site_before: {pb}/{tb} checks pass, {len(fails_before)} distinct failing checks")

@@ -8,14 +8,14 @@ All names, domains, phone numbers and addresses here are fictional (`quillmere-p
 
 | Item | What it is |
 |---|---|
-| `site_before/` | A small 4-page site with the problems I see most often |
-| `site_after/` | The same site after fixes |
+| `demo/site_before/` | A small 4-page site with the problems I see most often |
+| `demo/site_after/` | The same site after fixes |
 | `audit.py` | A checker that tests 19 rules and prints PASS/FAIL per rule. Same input, same answer every time |
 | `accept.py` | Runs the checker on both folders and confirms: many failures before, none after |
 | `out/` | The two reports the checker writes |
 | `deliverable_example.md` | What a buyer receives (Markdown; the buyer applies the files and nothing is published for them) |
 
-Run it: `python samples/g1_seo_geo/audit.py samples/g1_seo_geo/site_before` (Python 3 only, nothing to install).
+Run it: `python audit.py demo/site_before` (Python 3 only, nothing to install).
 
 ## Result on this sample
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sends every page to the public Schema.org validator and counts objects/errors.
 cd "$(dirname "$0")/.."; mkdir -p measurements/schema
-for v in before after; do for f in site_$v/*.html; do n=$(basename $f .html)
+for v in before after; do for f in demo/site_$v/*.html; do n=$(basename $f .html)
  curl -s -m 30 -X POST https://validator.schema.org/validate --data-urlencode "html@$f" | tail -c +5 > measurements/schema/$v-$n.json; done; done
 python3 - <<'P'
 import json,glob,collections
