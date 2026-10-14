@@ -12,7 +12,8 @@ Notice); the health % counts only checks with an Error finding.
 Rules are fixed and checkable by code. They are good-practice checks, not a
 prediction of rankings or AI citations. The NAP check compares only declared,
 structured values across pages (LocalBusiness-family JSON-LD name, telephone and
-streetAddress; og:site_name; itemprop values; phones in an <address> element),
+streetAddress; LocalBusiness microdata; phones and street in a business <address>
+element; og:site_name only as a fallback name),
 normalised for case, whitespace, NBSP and punctuation. It does not scan body text
 for name variants, so a variant written only in prose is not caught.
 """
@@ -33,18 +34,49 @@ MIN_FAQ = 5
 PHONE_RE = re.compile(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]\d{4}")
 
 
-# LocalBusiness and its common schema.org subtypes. Types ending in one of LB_SUFFIXES also count
-# (HomeAndConstructionBusiness, ShoeStore, LegalService, RoofingContractor ...).
-LB_TYPES = {"LocalBusiness", "Plumber", "Electrician", "Locksmith", "HVACBusiness", "Dentist", "Physician",
-            "MedicalClinic", "Optician", "Pharmacy", "Restaurant", "Bakery", "CafeOrCoffeeShop", "BarOrPub",
-            "FastFoodRestaurant", "HairSalon", "BeautySalon", "NailSalon", "DaySpa", "AutoRepair", "AutoDealer",
-            "Attorney", "Notary", "Store", "Hotel", "Motel", "ExerciseGym", "ChildCare", "Florist",
-            "RealEstateAgent", "TravelAgency", "VeterinaryCare", "AccountingService", "Library"}
-LB_SUFFIXES = ("Business", "Store", "Service", "Contractor", "Shop", "Clinic", "Restaurant")
+# LocalBusiness and its schema.org subtypes, listed explicitly (no suffix matching: a plain "Service"
+# or "OnlineStore" is not a local business).
+LB_TYPES = {
+    "LocalBusiness",
+    "AnimalShelter", "ArchiveOrganization", "AutomotiveBusiness", "AutoBodyShop", "AutoDealer", "AutoPartsStore",
+    "AutoRental", "AutoRepair", "AutoWash", "GasStation", "MotorcycleDealer", "MotorcycleRepair",
+    "ChildCare", "Dentist", "DryCleaningOrLaundry",
+    "EmergencyService", "FireStation", "Hospital", "PoliceStation",
+    "EmploymentAgency", "EntertainmentBusiness", "AdultEntertainment", "AmusementPark", "ArtGallery", "Casino",
+    "ComedyClub", "MovieTheater", "NightClub",
+    "FinancialService", "AccountingService", "AutomatedTeller", "BankOrCreditUnion", "InsuranceAgency",
+    "FoodEstablishment", "Bakery", "BarOrPub", "Brewery", "CafeOrCoffeeShop", "Distillery", "FastFoodRestaurant",
+    "IceCreamShop", "Restaurant", "Winery",
+    "GovernmentOffice", "PostOffice",
+    "HealthAndBeautyBusiness", "BeautySalon", "DaySpa", "HairSalon", "HealthClub", "NailSalon", "TattooParlor",
+    "HomeAndConstructionBusiness", "Electrician", "GeneralContractor", "HVACBusiness", "HousePainter", "Locksmith",
+    "MovingCompany", "Plumber", "RoofingContractor",
+    "InternetCafe", "LegalService", "Attorney", "Notary", "Library",
+    "LodgingBusiness", "BedAndBreakfast", "Campground", "Hostel", "Hotel", "Motel", "Resort", "VacationRental",
+    "MedicalBusiness", "CommunityHealth", "Dermatology", "DietNutrition", "Emergency", "Geriatric", "Gynecologic",
+    "MedicalClinic", "Midwifery", "Nursing", "Obstetric", "Oncologic", "Optician", "Optometric", "Otolaryngologic",
+    "Pediatric", "Pharmacy", "Physician", "Physiotherapy", "PlasticSurgery", "Podiatric", "PrimaryCare",
+    "Psychiatric", "PublicHealth",
+    "ProfessionalService", "RadioStation", "RealEstateAgent", "RecyclingCenter", "SelfStorage", "ShoppingCenter",
+    "SportsActivityLocation", "BowlingAlley", "ExerciseGym", "GolfCourse", "PublicSwimmingPool", "SkiResort",
+    "SportsClub", "StadiumOrArena", "TennisComplex",
+    "Store", "BikeStore", "BookStore", "ClothingStore", "ComputerStore", "ConvenienceStore", "DepartmentStore",
+    "ElectronicsStore", "Florist", "FurnitureStore", "GardenStore", "GroceryStore", "HardwareStore", "HobbyShop",
+    "HomeGoodsStore", "JewelryStore", "LiquorStore", "MensClothingStore", "MobilePhoneStore", "MovieRentalStore",
+    "MusicStore", "OfficeEquipmentStore", "OutletStore", "PawnShop", "PetStore", "ShoeStore", "SportingGoodsStore",
+    "TireShop", "ToyStore", "WholesaleStore",
+    "TelevisionStation", "TouristInformationCenter", "TravelAgency", "VeterinaryCare",
+}
+ADDR_SCOPES = {"PostalAddress", "ContactPoint"}
 
 
 def is_local_business(o):
-    return any(isinstance(t, str) and (t in LB_TYPES or t.endswith(LB_SUFFIXES)) for t in types_of(o))
+    return any(t in LB_TYPES for t in types_of(o))
+
+
+def scope_kind(itemtype):
+    t = (itemtype or "").split()[0].rstrip("/").rsplit("/", 1)[-1] if (itemtype or "").strip() else ""
+    return "lb" if t in LB_TYPES else "addr" if t in ADDR_SCOPES else "other"
 
 
 def nkey(t):
@@ -56,7 +88,7 @@ def nkey(t):
 
 def og_name(v):
     """og:site_name without a tagline ("Bramble Bakery | Fresh bread") or a trailing "(demo)"."""
-    v = re.split(r"\s+[|\u2013\u2014:]\s+|\s+-\s+", v.strip(), maxsplit=1)[0]
+    v = re.split(r"\s+[|\u2013\u2014]\s+|\s*:\s+|\s+-\s+", v.strip(), maxsplit=1)[0]
     return re.sub(r"\s*\(.*\)\s*$", "", v).strip()
 
 
@@ -65,17 +97,30 @@ def phone_key(v):
     return d[-10:] if len(d) >= 10 else d
 
 
+def as_str(v):
+    """A JSON-LD value usable as a NAP key: strings only (lists, objects, numbers, null are skipped)."""
+    return v.strip() if isinstance(v, str) else ""
+
+
 def street_of(addr):
     if isinstance(addr, dict):
-        return str(addr.get("streetAddress") or "")
-    return str(addr or "")
+        return as_str(addr.get("streetAddress"))
+    return as_str(addr)
+
+
+def has_word_seq(key, text):
+    """key (an nkey) appears in text as whole words: '12 oak street' is not found in '112 oak street'."""
+    return re.search(r"(?<!\w)" + re.escape(key) + r"(?!\w)", nkey(text)) is not None
 
 
 def nap_sources(pages):
-    """Declared NAP values only: LocalBusiness-family JSON-LD (name, telephone, address.streetAddress),
-    og:site_name, itemprop name/telephone/streetAddress, and phone numbers inside an <address> element.
-    Body text is never scanned for names. Returns {"name"|"phone"|"street": {key: (shown value, [pages])}}
-    plus the list of <address> texts per page."""
+    """Declared NAP values only:
+    - LocalBusiness-family JSON-LD: name, telephone, address.streetAddress (string values only);
+    - microdata itemprop name/telephone/streetAddress belonging to a LocalBusiness itemscope (directly, or via
+      its PostalAddress/ContactPoint; a nested Person's values are ignored);
+    - phone numbers in a business <address> element (see PageParser.addresses);
+    - og:site_name (tagline stripped), only when no LocalBusiness name is declared anywhere.
+    Body text is never scanned. Returns {"name"|"phone"|"street": {key: (shown value, [pages])}}."""
     src = {"name": {}, "phone": {}, "street": {}}
 
     def put(kind, key, shown, page):
@@ -86,21 +131,20 @@ def nap_sources(pages):
         p = pages[n]
         for o in parse_ld(p)[1]:
             if is_local_business(o):
-                put("name", nkey(o.get("name") or ""), str(o.get("name") or "").strip(), n)
-                put("phone", phone_key(o.get("telephone") or ""), str(o.get("telephone") or ""), n)
-                st = street_of(o.get("address"))
-                put("street", nkey(st), st.strip(), n)
-        og = og_name(p.meta.get("og:site_name", ""))
-        put("name", nkey(og), og, n)
+                nm, tel, st = as_str(o.get("name")), as_str(o.get("telephone")), street_of(o.get("address"))
+                put("name", nkey(nm), nm, n)
+                put("phone", phone_key(tel), tel, n)
+                put("street", nkey(st), st, n)
         for k, v in p.itemprops:
-            kind = {"name": "name", "telephone": "phone", "streetAddress": "street"}.get(k)
-            if kind == "phone":
-                put(kind, phone_key(v), v.strip(), n)
-            else:
-                put(kind, nkey(v), " ".join(v.split()), n)
+            kind = {"name": "name", "telephone": "phone", "streetAddress": "street"}[k]
+            put(kind, phone_key(v) if kind == "phone" else nkey(v), " ".join(v.split()), n)
         for t in p.addresses:
             for ph in PHONE_RE.findall(t):
                 put("phone", phone_key(ph), ph, n)
+    if not src["name"]:
+        for n in sorted(pages):
+            og = og_name(pages[n].meta.get("og:site_name", ""))
+            put("name", nkey(og), og, n)
     return src
 
 
@@ -120,7 +164,7 @@ CHECKS = [
     ("jsonld_valid", "Page has JSON-LD and it parses", "page"),
     ("schema_localbusiness", "Home page has LocalBusiness schema with name, phone, address", "site"),
     ("schema_faqpage", "FAQ page has FAQPage schema matching the visible questions", "site"),
-    ("nap_consistent", "One business name, one phone, one street address on all pages", "site"),
+    ("nap_consistent", "Declared business name, phone and street address (schema, microdata, footer <address>) match on all pages", "site"),
     ("faq_answer_first", f"FAQ has {MIN_FAQ}+ questions, each with an answer of {MAX_ANSWER_WORDS} words or fewer", "site"),
     ("sitemap", "sitemap.xml lists every page and robots.txt points to it", "site"),
     ("robots_ai", "robots.txt does not block search and AI crawlers", "site"),
@@ -144,7 +188,7 @@ TIERS = {
     "jsonld_valid": ("Error", "Add JSON-LD that parses (check it with a JSON validator)."),
     "schema_localbusiness": ("Warn", "Add LocalBusiness schema with name, telephone and address to the home page."),
     "schema_faqpage": ("Warn", "Add FAQPage schema whose questions match the visible ones."),
-    "nap_consistent": ("Warn", "Use one business name, phone and street address on every page."),
+    "nap_consistent": ("Warn", "Declare the business name, phone and address in LocalBusiness schema and use the same values on every page."),
     "faq_answer_first": ("Notice", f"Answer each question first, in {MAX_ANSWER_WORDS} words or fewer."),
     "sitemap": ("Error", "List every page in sitemap.xml and add a Sitemap line to robots.txt."),
     "robots_ai": ("Error", "Remove the Disallow: / rules for the search and AI crawlers you want."),
@@ -193,28 +237,29 @@ class PageParser(HTMLParser):
         self.addresses = []
         self._ip = []  # open itemprop captures: [tag, prop, parts]
         self._addr = None
-        self._addr_depth = 0
+        self._addr_biz = False
+        self._addr_level = 0
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         ip = a.get("itemprop")
-        # itemprop name counts only directly inside a LocalBusiness-family itemscope
-        # telephone/streetAddress: anywhere inside one (e.g. via a nested PostalAddress).
-        scopes = [lb for _, lb in self._scopes if lb is not None]
-        if ip in ("name", "telephone", "streetAddress") and (scopes[-1:] == [True] if ip == "name" else any(scopes)):
+        sc = [k for _, k in self._scopes if k is not None]  # enclosing itemscope kinds, outermost first
+        lb_own = sc[-1:] == ["lb"] or sc[-2:] == ["lb", "addr"]  # the business itself or its address/contact
+        if ip in ("name", "telephone", "streetAddress") and (sc[-1:] == ["lb"] if ip == "name" else lb_own):
             if a.get("content") is not None:
                 self.itemprops.append((ip, a["content"]))
             elif tag not in VOID:
-                self._ip.append([tag, ip, []])
+                self._ip.append([len(self._scopes) + 1, ip, []])
         if tag not in VOID:
-            lb = None
-            if "itemscope" in a:
-                lb = is_local_business({"@type": (a.get("itemtype") or "").rstrip("/").rsplit("/", 1)[-1]})
-            self._scopes.append((tag, lb))
-        if tag == "address":
-            self._addr_depth += 1
-            if self._addr is None:
-                self._addr = []
+            self._scopes.append((tag, scope_kind(a.get("itemtype")) if "itemscope" in a else None))
+        if self._addr is not None and tag in ("br", "p", "div", "li", "tr", "td"):
+            self._addr.append(" ")
+        if tag == "address" and self._addr is None:
+            in_article = any(t == "article" for t, _ in self._scopes[:-1])
+            # business <address>: inside the LocalBusiness scope, or outside any itemscope and any <article>
+            self._addr_biz = lb_own or (not sc and not in_article)
+            self._addr_level = len(self._scopes)
+            self._addr = []
         if tag == "html":
             self.lang = a.get("lang")
         elif tag == "title":
@@ -245,14 +290,15 @@ class PageParser(HTMLParser):
             if self._scopes[i][0] == tag:
                 del self._scopes[i:]
                 break
-        if self._ip and self._ip[-1][0] == tag:
+        while self._ip and self._ip[-1][0] > len(self._scopes):
             _, ip, parts = self._ip.pop()
             self.itemprops.append((ip, "".join(parts)))
-        if tag == "address" and self._addr_depth:
-            self._addr_depth -= 1
-            if not self._addr_depth:
-                self.addresses.append(" ".join(" ".join(self._addr).split()))
-                self._addr = None
+        if self._addr is not None and self._addr_level > len(self._scopes):
+            t = " ".join("".join(self._addr).split())
+            # a byline-like <address> with neither a phone nor a number (street) is not business contact data
+            if self._addr_biz and (PHONE_RE.search(t) or re.search(r"\d", t)):
+                self.addresses.append(t)
+            self._addr = None
         if tag == "title":
             self._in_title = False
         elif tag == "script":
@@ -328,11 +374,11 @@ def site_base(home, locs):
     From the home page canonical when present, else the sitemap's common folder. Returns (base, parsed home URL)."""
     hu = urlparse(home.canonical) if home is not None and home.canonical else None
     if hu is not None and hu.path:
-        hp = hu.path
+        hp = unquote(hu.path)
         if not hp.endswith("/"):
             hp = hp.rsplit("/", 1)[0] + "/" if "." in hp.rsplit("/", 1)[1] else hp + "/"
         return hp, hu
-    paths = [urlparse(l).path for l in locs]
+    paths = [unquote(urlparse(l).path) for l in locs]
     paths = [q for q in paths if q.startswith("/")]
     if not paths:
         return "/", hu
@@ -401,11 +447,8 @@ def audit(site):
 
     # schema (site-level)
     home = pages.get("index.html")
-    ok = False
-    if home:
-        for o in parse_ld(home)[1]:
-            if is_local_business(o):
-                ok = bool(o.get("name") and o.get("telephone") and o.get("address"))
+    ok = bool(home) and any(is_local_business(o) and o.get("name") and o.get("telephone") and o.get("address")
+                            for o in parse_ld(home)[1])
     add("schema_localbusiness", ok, "index.html", "" if ok else "missing or incomplete")
     faq = pages.get("faq.html")
     ok, why = False, "no FAQPage schema"
@@ -428,9 +471,9 @@ def audit(site):
             vals = sorted(src[kind].values(), key=lambda v: (-len(v[1]), v[0]))
             problems.append(f"{label} differs across declared sources: " + "; ".join(
                 f"'{shown}' ({', '.join(sorted(set(pg)))})" for shown, pg in vals))
-    streets = [k for k in src["street"]]
+    streets = list(src["street"])
     if len(streets) == 1:
-        miss = sorted(n for n, p in pages.items() for t in p.addresses if streets[0] not in nkey(t))
+        miss = sorted(n for n, p in pages.items() for t in p.addresses if not has_word_seq(streets[0], t))
         if miss:
             problems.append("<address> element does not show the declared street address: " + ", ".join(sorted(set(miss))))
     add("nap_consistent", not problems, "site", "; ".join(problems))
@@ -471,7 +514,6 @@ def audit(site):
                                  "URLs not on the canonical host: " + ", ".join(off[:3]) if off else "robots.txt has no Sitemap line")
         except (OSError, ValueError) as e:
             why = f"sitemap.xml unreadable: {e}"
-            pass
     add("sitemap", ok, "sitemap.xml", why)
     if not robots.exists():
         add("robots_ai", False, "robots.txt", "robots.txt missing")

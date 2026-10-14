@@ -22,7 +22,7 @@
 | jsonld_valid | Error | Page has JSON-LD and it parses | PASS |  |
 | schema_localbusiness | Warn | Home page has LocalBusiness schema with name, phone, address | PASS |  |
 | schema_faqpage | Warn | FAQ page has FAQPage schema matching the visible questions | PASS |  |
-| nap_consistent | Warn | One business name, one phone, one street address on all pages | PASS |  |
+| nap_consistent | Warn | Declared business name, phone and street address (schema, microdata, footer <address>) match on all pages | PASS |  |
 | faq_answer_first | Notice | FAQ has 5+ questions, each with an answer of 60 words or fewer | PASS |  |
 | sitemap | Error | sitemap.xml lists every page and robots.txt points to it | PASS |  |
 | robots_ai | Error | robots.txt does not block search and AI crawlers | PASS |  |

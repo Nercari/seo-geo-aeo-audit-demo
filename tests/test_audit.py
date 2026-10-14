@@ -151,8 +151,10 @@ class NapAndSitemap(unittest.TestCase):
     def test_nap_uses_site_declared_name_not_hardcoded(self):
         r = self.make({"index.html": ("https://x.example/", self.NAP), "a.html": ("https://x.example/a.html", self.NAP)}, home_head=self.LD)
         self.assertTrue(r["nap_consistent"][0][0], r["nap_consistent"])
-        for gone in ("NAME_RE", "name_re", "name_variant", "guess_brand"):
-            self.assertFalse(hasattr(audit, gone), gone)
+        # behaviour, not layout: other names, phones and streets written in prose never change the result
+        prose = " Larkspur Plumbing, Bramble Bakers Co., call 555-999-0000, 99 Elm Street."
+        ok, _, why = self.nap({"index.html": (self.ld(), self.NAP + prose), "a.html": (self.ld(), prose)})
+        self.assertTrue(ok, why)
 
     def test_nap_body_text_never_scanned(self):
         bodies = ["Visit Bramble Bakery.", "Bramble Bakery's bread", "<b>Bramble</b> Bakery", "Bramble\u00a0Bakery",
@@ -197,9 +199,12 @@ class NapAndSitemap(unittest.TestCase):
         self.assertTrue(ok, why)
         ok, _, why = self.nap({"index.html": (og % "Bramble Bakery (demo)", "")})
         self.assertTrue(ok, why)
-        ok, _, why = self.nap({"index.html": (self.ld(), ""), "a.html": (og % "Bramble Bakers", "")})
+        ok, _, why = self.nap({"index.html": (og % "Bramble Bakery: fresh bread", ""), "a.html": (og % "Bramble Bakers", "")})
         self.assertFalse(ok)
         self.assertIn("Bramble Bakers", why)
+        # og:site_name is a fallback only: a short brand next to a declared LocalBusiness name is not a mismatch
+        ok, _, why = self.nap({"index.html": (self.ld(), ""), "a.html": (og % "Bramble", "")})
+        self.assertTrue(ok, why)
 
     def test_nap_prefers_localbusiness_over_organization(self):
         ld = ('<script type="application/ld+json">{"@graph": [{"@type": "Organization", "name": "Agency Ltd"},'
@@ -238,6 +243,61 @@ class NapAndSitemap(unittest.TestCase):
         ok, _, why = self.nap({"index.html": (self.ld(), good.replace("12 Oak", "14 Mill"))})
         self.assertFalse(ok)
         self.assertIn("<address>", why)
+
+    def test_plain_service_and_online_store_are_not_businesses(self):
+        svc = ('<script type="application/ld+json">[{"@type": "Plumber", "name": "Bramble Bakery", "telephone": "555-123-4567",'
+               ' "address": {"@type": "PostalAddress", "streetAddress": "12 Oak Street"}},'
+               ' {"@type": "Service", "name": "Drain cleaning", "provider": {"@type": "Plumber", "name": "Bramble Bakery"}},'
+               ' {"@type": "OnlineStore", "name": "Bramble Shop Online"}]</script>')
+        ok, _, why = self.nap({"index.html": (svc, ""),
+                               "a.html": ('<script type="application/ld+json">{"@type": "Service", "name": "Leak repair"}</script>', "")})
+        self.assertTrue(ok, why)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        d = Path(tmp.name)
+        (d / "index.html").write_text(self.PAGE.format(t="i", c="https://x.example/", h=svc, b=""), encoding="utf-8")
+        self.assertTrue(audit.audit(d)["schema_localbusiness"][0][0])  # a later Service does not override the Plumber
+        for typ in ('"Service"', '"OnlineStore"', '"OnlineBusiness"'):
+            self.assertFalse(audit.is_local_business({"@type": typ.strip('"')}), typ)
+        for typ in ("ProfessionalService", "FinancialService", "EmergencyService", "LegalService", "ShoeStore"):
+            self.assertTrue(audit.is_local_business({"@type": typ}), typ)
+
+    def test_street_needs_whole_words(self):
+        good = "</p><address>Bramble Bakery<br>12 Oak Street<br>(555) 123-4567</address><p>"
+        ok, _, why = self.nap({"index.html": (self.ld(), good.replace("12 Oak", "112 Oak"))})
+        self.assertFalse(ok)
+        ok, _, why = self.nap({"index.html": (self.ld(), good.replace("Street", "Streets"))})
+        self.assertFalse(ok)
+
+    def test_author_byline_address_ignored(self):
+        bylines = ['</p><article><address>By <a href="mailto:a@b.example">Ann Lee</a>, 1 Elm Road, 555-999-0000</address></article><p>',
+                   '</p><address>Written by Ann Lee</address><p>',
+                   '</p><div itemscope itemtype="https://schema.org/Person"><address>Ann Lee, 1 Elm Road, 555-999-0000</address></div><p>']
+        for b in bylines:
+            with self.subTest(b=b):
+                ok, _, why = self.nap({"index.html": (self.ld(), b)})
+                self.assertTrue(ok, why)
+
+    def test_address_phone_split_by_inline_markup(self):
+        ok, _, why = self.nap({"index.html": (self.ld(), "</p><address>12 Oak Street, (555) 123-<span>9999</span></address><p>")})
+        self.assertFalse(ok)
+        self.assertIn("phone differs", why)
+
+    def test_non_string_jsonld_values_skipped(self):
+        ld = ('<script type="application/ld+json">{"@type": "Bakery", "name": ["Bramble Bakery", "BB"], "telephone": 5551234567,'
+              ' "address": [{"@type": "PostalAddress", "streetAddress": "12 Oak Street"}]}</script>')
+        ok, _, why = self.nap({"index.html": (ld, ""), "a.html": (self.ld(), "")})
+        self.assertTrue(ok, why)
+
+    def test_employee_telephone_and_nested_itemprop(self):
+        md = ('<div itemscope itemtype="https://schema.org/Bakery"><span itemprop="name"><span>Bramble</span> Bakery</span>'
+              '<span itemprop="telephone">555 123 4567</span>'
+              '<div itemprop="employee" itemscope itemtype="https://schema.org/Person"><span itemprop="name">Ann</span>'
+              '<span itemprop="telephone">555 999 0000</span>'
+              '<div itemprop="address" itemscope itemtype="https://schema.org/PostalAddress"><span itemprop="streetAddress">1 Elm Road</span></div></div>'
+              '<div itemprop="address" itemscope itemtype="https://schema.org/PostalAddress"><span itemprop="streetAddress">12 Oak Street</span></div></div>')
+        ok, _, why = self.nap({"index.html": (self.ld(), md)})
+        self.assertTrue(ok, why)
 
     def test_nap_old_demo_name_ignored(self):
         r = self.make({"index.html": ("https://x.example/", self.NAP + " Larkspur Plumbing")}, home_head=self.LD)
