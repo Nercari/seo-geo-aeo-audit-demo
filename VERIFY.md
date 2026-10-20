@@ -8,4 +8,5 @@ The acceptance script CI runs. tests/test_audit.py has one Windows path-separato
 
 ```
 python3 accept.py
+python -m unittest tests.test_merge_gate -q
 ```
